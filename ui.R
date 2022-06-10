@@ -22,6 +22,7 @@ if (!require("utils", quietly = TRUE))
 
 if (!require("INLA", quietly = TRUE)){
   # R.version <- readline(prompt = "Are you running this app with the last version of R [y/n]? ")
+  writeLines("The first time, you may need to restart the application when the packages are finished installing. You would notice if the process still on but the app window is closed.")
   R.version <- menu(choices = c("Yes", "No"), title = paste0("Your R version is ", version$major, ".", version$minor, ". Are you running this app on the last version of R?"))
   if(R.version==1){
     install.packages("INLA",repos=c(getOption("repos"),INLA="https://inla.r-inla-download.org/R/stable"), dep=TRUE)
