@@ -1,3 +1,4 @@
+
 if (!require("shinydashboard", quietly = TRUE))
   install.packages("shinydashboard")
 if (!require("shinyWidgets", quietly = TRUE))
@@ -16,9 +17,19 @@ if (!require("periscope", quietly = TRUE))
 if (!require("splines", quietly = TRUE))
   install.packages("splines")
 
-# if (!require("INLA", quietly = TRUE))
-#   library("devtools")
-#   devtools::install_github(repo = "https://github.com/hrue/r-inla", ref = "stable", subdir = "rinla", build = FALSE)
+if (!require("utils", quietly = TRUE))
+  install.packages("utils")
+
+if (!require("INLA", quietly = TRUE)){
+  # R.version <- readline(prompt = "Are you running this app with the last version of R [y/n]? ")
+  R.version <- menu(choices = c("Yes", "No"), title = paste0("Your R version is ", version$major, ".", version$minor, ". Are you running this app on the last version of R?"))
+  if(R.version==1){
+    install.packages("INLA",repos=c(getOption("repos"),INLA="https://inla.r-inla-download.org/R/stable"), dep=TRUE)
+  } else { 
+    install.packages("remotes")
+    remotes::install_version("INLA", version="22.05.03",repos=c(getOption("repos"),INLA="https://inla.r-inla-download.org/R/testing"), dep=TRUE)
+    }
+}
 if (!require("inlabru", quietly = TRUE))
   install.packages("inlabru")
 if (!require("ggplot2", quietly = TRUE))
