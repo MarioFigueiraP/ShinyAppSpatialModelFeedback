@@ -4,3 +4,6 @@ This application is designed for the resolution of spatial models using the Baye
 
 To run this app you can use the function `runGitHub("ShinyAppSpatialModelFeedback", "MarioFigueiraP")` from `library(shiny)`.
 
+# App functionality
+
+As mentioned above, this application was built to solve spatial models.
