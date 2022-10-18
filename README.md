@@ -36,9 +36,9 @@ The INLA package installation could give some problems or errors, in such case i
 
 The app is made up of four major blocks:
 
-1. Introduction.
-2. Data Simulation.
-3. Upload Data.
-4. Model Analysis.
+1. Introduction: a brief introduction for the app.
+2. Data Simulation: in this section is possible to simulate some spatial data.
+3. Upload Data: it allows to read some data frame, but there are some rules in which the data must be configure in order to be read properly.
+4. Model Analysis: in this section the simulated or uploaded data can be analyzed by the two available model structures, a geoestatistical model or a specific spatial joint model.
 
 *Data Simulation* and *Upload Data* are sequentially linked to *Model Anaysis*, which means that data from one of the former are taken in the latter.
