@@ -1,7 +1,3 @@
- <!DOCTYPE html>
-<html>
-<body>
-
 <h1 style="color: DarkRed; text-align: center; text-decoration: underline; font-weight: bold"> Shiny App for Spatial Modeling (RStudio & R-INLA) </h1>
 
 This application is designed for the resolution of spatial models using the Bayesian paradigm and the INLA methodology. Therefore, we will explain its functionality and its main sections. Additionally, in this *README* file, the theoretical foundations underlying the application will be briefly presented. Which means, a summary of Bayesian inference and the foundaments of the INLA methodology.
@@ -53,7 +49,3 @@ The app is made up of four major blocks:
 
 <h2> 3. Model Analysis </h2>
 
-
-  
-</body>
-</html> 
