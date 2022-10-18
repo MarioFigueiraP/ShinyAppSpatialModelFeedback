@@ -354,7 +354,7 @@ shinyServer(function(input, output, session) {
                           Bathymetry.field=SimMap()$DataSim$DataSim$bathymetry.field)
         ggplot <- ggplot(DFM) + geom_tile(aes(Latitude, Longitude, fill = Bathymetry.field)) + 
             scale_fill_viridis_c(option = "turbo") + theme_bw() + labs(fill="Values") +
-            xlab("Latitude") + ylab("Longitude") + ggtitle("Bathymetric chart") +
+            xlab("Latitude") + ylab("Longitude") + ggtitle("Bathymetric map") +
             theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
         return(ggplot)
     }
@@ -427,7 +427,7 @@ shinyServer(function(input, output, session) {
                           Bathymetry.effect.field=SimMap()$DataSim$DataSim$bathymetry.effect.field)
         ggplot <- ggplot(DFM) + geom_tile(aes(Latitude, Longitude, fill = Bathymetry.effect.field)) + 
             scale_fill_viridis_c(option = "turbo") + theme_bw() +
-            xlab("Latitude") + ylab("Longitude") + ggtitle("Bathymetric effect chart") + labs(fill="Values") +
+            xlab("Latitude") + ylab("Longitude") + ggtitle("Bathymetric effect map") + labs(fill="Values") +
             theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
         return(ggplot)
     }
@@ -764,27 +764,70 @@ shinyServer(function(input, output, session) {
     ##### ################ ###### Independent and Random Model Data ###### ################ #####
     #############################################################################################
     
+    RandomCMesh <- reactive({
+      #taking the data from simulation or from the loading tab
+      if(input$DataSimulatedLoaded=="sim"){
+        DFsample <- as.data.frame(Random.sampling())
+      } else if(input$DataSimulatedLoaded=="load"){
+        DFsample <- datareadSample()
+      }
+      
+      if(input$BathymetryRasterSPDE=="raster"){
+        rasterSample <- datareadBathymetricRaster()[sample(1:nrow(datareadBathymetricRaster()), 60),1:2]
+        qloc <- quantile(as.vector(dist(rasterSample)),probs=c(ifelse(input$RandomCustomMesh,input$RandomMeshQloc,0.03),0.3))
+          # quantile(as.vector(dist(rasterSample)),probs=c(0.01,0.3))
+        mesh <- inla.mesh.2d(loc=cbind(rasterSample[,1],rasterSample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.4), 
+                             max.edge=c(qloc[1], qloc[2]))
+        sample <- rasterSample
+      } else if(input$BathymetryRasterSPDE=="solvebathy"){
+        qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=50),1:2])),probs=c(ifelse(input$RandomCustomMesh,input$RandomMeshQloc,0.03),0.3))
+          # quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=60),1:2])),probs=c(0.01,0.3))
+        mesh <- inla.mesh.2d(loc=cbind(DFsample[,1],DFsample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.4), 
+                             max.edge=c(qloc[1], qloc[2]))
+        sample <- DFsample
+      }
+      result <- list(mesh=mesh, qloc=qloc, Sample=sample)
+      return(result)
+    })
+    
+    
+    ggplotRandomMesh <- function(){
+      ggplot()+ gg(RandomCMesh()$mesh)+ theme_bw() + xlab("Latitude") + ylab("Longitude") +
+        ggtitle("Mesh over the study region") + 
+        geom_point(data=RandomCMesh()$Sample, 
+                   aes(x=RandomCMesh()$Sample[,1],y=RandomCMesh()$Sample[,2]), size=1) + 
+        theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
+    }
+    
+    downloadFile(
+      id = "ggplotRandomMesh",
+      logger = ss_userAction.Log,
+      filenameroot = "ggplotRandomMesh",
+      aspectratio  = 1,
+      downloadfxns = list(png  = ggplotRandomMesh)
+    )
+    
+    downloadablePlot(
+      id = "ggplotRandomMesh",
+      logger = ss_userAction.Log,
+      filenameroot = "ggplotRandomMesh",
+      aspectratio  = 1,
+      downloadfxns = list(png  = ggplotRandomMesh),
+      visibleplot  = ggplotRandomMesh)
+    
     RandomModelFit <- eventReactive(input$fitIndRandom, {
         showNotification(ui=paste("Fitting the data."), duration = NULL)
         t1 <- Sys.time()
+        
         #taking the data from simulation or from the loading tab
         if(input$DataSimulatedLoaded=="sim"){
-            DFsample <- as.data.frame(Random.sampling())
+          DFsample <- as.data.frame(Random.sampling())
         } else if(input$DataSimulatedLoaded=="load"){
-            DFsample <- datareadSample()
+          DFsample <- datareadSample()
         }
-            
-
-        if(input$BathymetryRasterSPDE=="raster"){
-            rasterSample <- datareadBathymetricRaster()[sample(1:nrow(datareadBathymetricRaster()), 60),1:2]
-            qloc <- quantile(as.vector(dist(rasterSample)),probs=c(0.01,0.3))
-            mesh <- inla.mesh.2d(loc=cbind(rasterSample[,1],rasterSample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.4), 
-                                 max.edge=c(qloc[1], qloc[2]))
-        } else if(input$BathymetryRasterSPDE=="solvebathy"){
-            qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=60),1:2])),probs=c(0.01,0.3))
-            mesh <- inla.mesh.2d(loc=cbind(DFsample[,1],DFsample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.4), 
-                                 max.edge=c(qloc[1], qloc[2]))
-        }
+        
+        mesh <- RandomCMesh()$mesh
+        qloc <- RandomCMesh()$qloc
 
 
         #now we'll make the spde structure
@@ -2072,7 +2115,8 @@ shinyServer(function(input, output, session) {
             DFpred <- data.frame(Latitude=gridPredPred[,1], Longitude=gridPredPred[,2],
                          Bathymetry=bathymetry.predPred)
             
-            gaus.prior <- list(prior = 'gaussian', param = ifelse(input$PrefBetaCopy, input$PrefpriorBetacopy, c(0, 0.001)))
+            gaus.prior <- list(prior = 'gaussian', param = input$PrefpriorBetacopy)
+            # gaus.prior <- list(prior = 'gaussian', param = ifelse(input$PrefBetaCopy, input$PrefpriorBetacopy, c(0, 0.001)))
             rn.for.y <- paste("y ~ -1", "(Intercept", mod.bathymetry,  "f(spatial, model=spde))", sep = " + ")
             rn.for.pp <- paste("(Intercept.pp", mod.bathymetry.pp, "f(spatial.pp, copy = 'spatial', fixed = FALSE, hyper = list(beta = gaus.prior)))", sep = " + ")
             rn.for <- paste(rn.for.y, rn.for.pp, sep = " + ")
@@ -2118,7 +2162,8 @@ shinyServer(function(input, output, session) {
             A.y.pred <- inla.spde.make.A(mesh = mesh, loc = as.matrix(gridPredPred))
             AA.y.pred <- list(A.y.pred,1)
             
-            gaus.prior <- list(prior = 'gaussian', param = ifelse(input$PrefBetaCopy, input$PrefpriorBetacopy, c(0, 0.001)))
+            gaus.prior <- list(prior = 'gaussian', param = input$PrefpriorBetacopy)
+            # gaus.prior <- list(prior = 'gaussian', param = ifelse(input$PrefBetaCopy, input$PrefpriorBetacopy, c(0, 0.001)))
             rn.for.y <- paste("y ~ -1", "(Intercept", mod.bathymetry, "f(spatial, model=spde))", sep = " + ")
             rn.for.pp <- paste("(Intercept.pp", mod.bathymetry.pp, "f(spatial.pp, copy = 'spatial', fixed = FALSE, hyper = list(beta = gaus.prior)))", sep = " + ")
             rn.for <- paste(rn.for.y, rn.for.pp, sep = " + ")
@@ -2190,7 +2235,7 @@ shinyServer(function(input, output, session) {
                        Summary.hyperpar=list(Summary.hyperpar=Preferential.model$summary.hyperpar),
                        SummaryInternalHyper=list(SummaryInternalHyper=Preferential.model$internal.summary.hyperpar),
                        SummaryCPO=list(SummaryCPO=na.omit(Preferential.model$cpo$cpo)),
-                       DICmodel=list(DICmodel=Preferential.model$dic$dic))
+                       DICmodel=list(DICmodel=data.frame(DIC=Preferential.model$dic$family.dic, row.names=c("Geostatistical", "Point process"))))
         
         
         t2 <- Sys.time()
@@ -2198,7 +2243,7 @@ shinyServer(function(input, output, session) {
         showNotification(ui=paste("The model has been fitted:", as.numeric(round(Preferential.model$cpu.used[4])), 
                                   "(abundance model) and", as.numeric(round(difftime(t2,t1, units="secs"))), 
                                   "(overall process) secs." ), duration = NULL)
-        showNotification(ui=paste("The model's DIC is", Preferential.model$dic$dic), duration = NULL)
+        # showNotification(ui=paste("The model's DIC is", Preferential.model$dic$dic), duration = NULL)
         return(result)
     })
     
@@ -2452,7 +2497,7 @@ shinyServer(function(input, output, session) {
                       caption="Summary internal hyperparameters")
     
     dataPrefDICtable <- function(){
-      DF <- data.frame(DIC=PreferentialModelFit()$DICmodel$DICmodel) %>%
+      DF <- PreferentialModelFit()$DICmodel$DICmodel %>% # data.frame(DIC=PreferentialModelFit()$DICmodel$DICmodel) %>%
         mutate(across(where(is.numeric), round, digits = 2))
       return(DF)
     }
@@ -2462,7 +2507,7 @@ shinyServer(function(input, output, session) {
                       filenameroot="dataPrefDICtable",
                       downloaddatafxns=list(csv=dataPrefDICtable,
                                             tsv=dataPrefDICtable),
-                      tabledata=dataPrefDICtable, rownames = FALSE,
+                      tabledata=dataPrefDICtable, rownames = TRUE,
                       caption="Model DIC")
     
     dataPrefCPOtable <- function(){
