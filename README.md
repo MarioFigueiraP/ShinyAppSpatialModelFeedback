@@ -43,9 +43,9 @@ The app is made up of four major blocks:
 
 *Data Simulation* and *Upload Data* are sequentially linked to *Model Anaysis*, which means that data from one of the former are taken in the latter.
 
-<h2> Data Simulation </h2>
+<h2> 1. Data Simulation </h2>
 
-<h2> Upload data </h2>
+<h2> 2. Upload data </h2>
 
-<h2> Model Analysis </h2>
+<h2> 3. Model Analysis </h2>
 
