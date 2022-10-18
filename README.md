@@ -6,7 +6,7 @@ To run this app you can use the function `runGitHub("ShinyAppSpatialModelFeedbac
 
 # App dependencies
 
-As mentioned above, this application was built to solve spatial models. The application needs several packages, although these dependencies would be installed automatically when running the application itself. If the automatic process fails you can try to install these packages manually, which are:
+As mentioned above, this application was built to solve spatial models, for wich it needs several packages, although these dependencies would be installed automatically when running the application itself. If the automatic process fails you can try to install these packages manually, which are:
 
 ```
 install.packages(shiny)
