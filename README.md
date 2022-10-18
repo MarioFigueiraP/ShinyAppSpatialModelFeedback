@@ -9,25 +9,25 @@ To run this app you can use the function `runGitHub("ShinyAppSpatialModelFeedbac
 As mentioned above, this application was built to solve spatial models, for wich it needs several packages, although these dependencies would be installed automatically when running the application itself. If the automatic process fails you can try to install these packages manually, which are:
 
 ```
-install.packages(shiny)
-install.packages(shinydashboard)
-install.packages(shinyWidgets)
-install.packages(shinydashboardPlus)
-install.packages(shinyBS)
-install.packages(shinyjs)
-install.packages(periscope)
-install.packages(splines)
+install.packages("shiny")
+install.packages("shinydashboard")
+install.packages("shinyWidgets")
+install.packages("shinydashboardPlus")
+install.packages("shinyBS")
+install.packages("shinyjs")
+install.packages("periscope")
+install.packages("splines")
 install.packages("INLA",
   repos=c(getOption("repos"),INLA="https://inla.r-inla-download.org/R/stable"), 
   dep=TRUE) # It is a core package for the app.
-install.packages(inlabru)
-install.packages(ggplot2)
-install.packages(lattice)
-install.packages(rintrojs)
-install.packages(patchwork)
-install.packages(viridis)
-install.packages(rgeos)
-install.packages(dplyr)
+install.packages("inlabru")
+install.packages("ggplot2")
+install.packages("lattice")
+install.packages("rintrojs")
+install.packages("patchwork")
+install.packages("viridis")
+install.packages("rgeos")
+install.packages("dplyr")
 ```
 
 The INLA package installation could give some problems or errors, in such case it is desirable to visit the [INLA home page](https://www.r-inla.org/), where the installation is explained in some detail and many FAQ are answered.
