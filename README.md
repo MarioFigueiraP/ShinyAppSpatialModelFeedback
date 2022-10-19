@@ -69,6 +69,19 @@ g(E(y_i)) = g(\mu_i) = \\beta_0 + \mathbf{X}_i\boldsymbol\beta + u_i.
 \end{array}
 $$
 
+The steps for its simulation are:
+
+- (i) Configure the study region parameters, its length and the resolution of the raster.
+- (ii) Define the covariate formula in the "study region", $x=f(\mathbf{s})$.
+- (iii) Select the type effect for the covariate: 
+  - (a) linear,
+  - (b) first order random walk,
+  - (c) second order random walk, or
+  - (d) a custom function, $f(x)$.
+- (iv) Determine the spatial parameters, spatial range $\rho$ and marginal deviation $\sigma$, to simulate it.
+- (v) Establish the coefficients for the intercep and for the covariate if it is a linear effect, and indicate the value of the likelihood variance.
+- (vi) Finally, simulate the observational data from a Gaussian or a Gamma distribution.
+
 From the resulting raster map two sample simulations could be done: 
 
 - (i) a <i>independent sampling</i> (iid) or 
@@ -86,12 +99,12 @@ $$
 p_i = \frac{\exp[r\cdot y_i]}{\sum_i \exp[r\cdot y_i]\cdot S_i} \propto \exp[r\cdot y_i].
 $$
 
-
-
 [^2]: In a precise sense use this "method" would be absolutly incorrect, but if the number of samples are much lower than the number of raster points (the number of simulated data) then we could assume this as a valid approximation. The right mode would be simulate a homogeneus point process (homogeneous Poisson), evalauting its intesity function $\lambda$ by the condition over the whole process outcome $\Lambda = \iint \lambda(\mathbf{s}) dS$, the expected number of points $\Lambda$.
-[^3]: We could say the same for preferential sampling as for independent sampling, except that for independent sampling we would do an inhomogeneous Poisson process to correctly simulate the sample.
+[^3]: We could say the same for preferential sampling as for independent sampling, except that for right preferential sampling we would simulate the samples from an inhomogeneous Poisson process.
 
 <h2> 2. Upload data </h2>
+
+This section allows to upload a data frame by the user (<i>Load Analysis Data Frame:</i>), but there are some conditions on the data frame to be read correctly by the application: the first two columns should be the coordinates, the third column the observation data and the others can be the covariates. there is another element of the user interface that enables reading a data frame of explanatory variables (<i>Load Covariates Data Frame</i>). 
 
 <h2> 3. Model Analysis </h2>
 
