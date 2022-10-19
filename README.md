@@ -69,6 +69,13 @@ g(E(y_i)) = g(\mu_i) = \\beta_0 + \mathbf{X}_i\boldsymbol\beta + u_i.
 \end{array}
 $$
 
+From the resulting raster map two sample simulations could be done: 
+
+- (i) a <i>independent sampling</i> (iid) or 
+- (ii) a <i>preferential sampling</i> (ps). 
+
+The <i>independent sampling</i> assumes that each raster point (datum) has the same probability and it's done by the <code>sample(x, size)</code> function, where we can specified the vector data $x$ and the $size$ of the sample  
+
 <h2> 2. Upload data </h2>
 
 <h2> 3. Model Analysis </h2>
