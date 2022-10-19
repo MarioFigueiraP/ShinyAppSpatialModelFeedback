@@ -108,3 +108,22 @@ This section allows to upload a data frame by the user (<i>Load Analysis Data Fr
 
 <h2> 3. Model Analysis </h2>
 
+This section presents the inference procedures for spatial data. The two model structures availables are (i) an \textit{independent model} and (ii) a \textit{preferential model}, which we will use depending on whether the data come from an independent or preferential sampling.
+
+<h3> 3.1 Independent Model </h3>
+
+This first model is essentially the structure we have used to simulate the geostatistical data, but since we will now perform a Bayesian inference analysis the schema needs further specification: 
+
+$$
+\begin{array}{c}
+y_i \sim f(y_i|\boldsymbol\theta) \\; : \\;f(\cdot)=\{N(\cdot)\veebar Gamma(\cdot)\},\
+g(E(y_i)) = g(\mu_i) = \\beta_0 + \mathbf{X}_i\boldsymbol\beta + u_i,\\
+\boldsymbol\beta \sim N(\mathbf{0}, \boldsymbol\Tau\
+\mathbf{u} \sim N(\mathbf{0}, \boldsymbol\Sigma(\rho, \sigma)),\\
+\rho \sim pc(\rho_0, p_{\rho}),\\
+\sigma \sim pc(\sigma_{0}, p_{\sigma})\\
+\end{array}
+$$
+
+<h3> 3.2 Preferential Moodel </h3>
+
