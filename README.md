@@ -116,14 +116,22 @@ This first model is essentially the structure we have used to simulate the geost
 
 $$
 \begin{array}{c}
-y_i \sim f(y_i|\boldsymbol\theta) \\; : \\;f(\cdot)=\{N(\cdot)\veebar Gamma(\cdot)\},\
-g(E(y_i)) = g(\mu_i) = \\beta_0 + \mathbf{X}_i\boldsymbol\beta + u_i,\\
-\boldsymbol\beta \sim N(\mathbf{0}, \boldsymbol\Tau\
-\mathbf{u} \sim N(\mathbf{0}, \boldsymbol\Sigma(\rho, \sigma)),\\
-\rho \sim pc(\rho_0, p_{\rho}),\\
-\sigma \sim pc(\sigma_{0}, p_{\sigma})\\
+y_i \sim f(y_i|\boldsymbol\theta) \\; : \\; f(\cdot)=\\{N(\cdot) \veebar Gamma(\cdot)\\}, \\
+g(E(y_i)) = g(\mu_i) = \\beta_0 + \mathbf{X_i} \boldsymbol\beta + u_i, \\
+\boldsymbol\beta \sim N(\mathbf{0}, \Sigma_\beta) \\; : \\; \Sigma_{\beta}\sim diag(\sqrt{1000}, ..., \sqrt{1000}), \\
+\mathbf{u} \sim N(\mathbf{0}, \Sigma(\rho, \sigma)),\\
+\rho \sim pc_{\rho}(\rho_0, p_{\rho}) \\; : \\; pc_{\rho}(\rho_0, p_{\rho})\equiv \\{ P(\rho < \rho_0)=p_{\rho}\\},\\
+\rho_0 = size/2, \\; p_{\rho} = 1/2,\\
+\sigma \sim pc_{\sigma}(\sigma_{0}, p_{\sigma}) \\; : \\; pc_{\sigma}(\sigma_0, p_{\sigma})\equiv \\{ P(\sigma > \sigma_0)=p_{\sigma}\\},\\
+\sigma_0 = 1, \\; p_{\sigma} = 1/2,\\
+\log(\tau) \sim log-Gamma(1, 0.00005).
 \end{array}
 $$
 
+
 <h3> 3.2 Preferential Moodel </h3>
+
+In preferential sampling processes we have that the sampling process shares information with the underlying phenomon of study, the geostatistical process
+
+
 
