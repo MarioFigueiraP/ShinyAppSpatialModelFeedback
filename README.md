@@ -115,7 +115,7 @@ $$
 $$
 
 $$
-\left\\{ u_i \sim N(\mathbf{0}, \Sigma(\rho,\sigma))\implies \Sigma(\rho,\sigma)=\sigma\cdot corr(\rho), \\; \epsilon(\sigma)\sim N(0,\sigma)  \right\\} \longleftarrow \text{Hyperparameters}
+\left\\{ \mathbf{u} \sim N(\mathbf{0}, \Sigma(\rho,\sigma))\implies \Sigma(\rho,\sigma)=\sigma\cdot corr(\rho), \\; \epsilon(\sigma)\sim N(0,\sigma)  \right\\} \longleftarrow \text{Hyperparameters}
 $$
 
 <h3> 3.1 Independent Model </h3>
@@ -136,15 +136,13 @@ g(E(y_i)) = g(\mu_i) = \eta_i = \beta_0 + \mathbf{X_i} \boldsymbol\beta + u_i, \
 \end{array}
 $$
 
-Since there are a lot of termns we'll try to provide a synthetycal explanation of these line by line:
+Since there are many terms, we will try to give a synthetic explanation of them line by line:
 
 - (i) The first line describe the relation between the response or observational variable ($y_i$) and its distribution, giving the predictor $\eta_i$ and all the parameters $\boldsymbol\theta$. The application is focused on continuos variables, hence the gaussian and gamma distribution are the only available.
 - (ii) The next one is the link function $g(\cdot)$ which evalautes the expected value of $y_i$ as $E(y_i)=\mu_i$. The link function could take several shapes, but the most usual are the identity function $g(E(y_i)) = E(y_i)$ for a gaussian likelihoods and the log function $g(E(y_i))=\log\[E(y_i)\]$ for gamma likelihoods. This line could be named as "the model formula" since links the predictor (describe by the explanatory variables) with some expected measure of the observational variable distribution, e. g. the mean is the most common used or it could be modeling the variance instead. Therefore, $\beta_0$ is the intercept, $\beta$
-- (iii) The Bayesian inference implies a definition of prior distributions for the parameters to fit a model, then the third line described the prior distribution of these parameters[^4] (latent field parameters)  
+- (iii) The Bayesian inference implies a definition of prior distributions for the parameters to fit a model, then the third line described the prior distribution of these latent parameters.
+- (iv) The following lines are the definition of the hyperparameter prior distributions. We can highlight the penalized prior distributions for the spatial effect hyperparameters, which allow us to describe the distribution as the probability $(p_\rho,p_\sigma)$ on lower/upper side of $(\rho_0,\sigma_0)$. 
 
-
-
-[^4]: 
 
 <h3> 3.2 Preferential Model </h3>
 
