@@ -108,7 +108,7 @@ This section allows to upload a data frame by the user (<i>Load Analysis Data Fr
 
 <h2> 3. Model Analysis </h2>
 
-This section presents the inference procedures for spatial data. The two model structures availables are (i) an <i>independent model</i> and (ii) a <i>preferential model</i>, which we will use depending on whether the data come from an independent or preferential sampling. The models proposed are Bayesian hierarchical models, which means that the model has to layers of parameters: (i) one layer of parameters directly related to the predictor $\eta_i$, called <i>latent</i> parameters, and (ii) a second layer in which the parameters are related to other parameters, called <i>hyperparameters</i>. Let's see this with a small example:
+This section presents the inference procedures for spatial data. The two model structures availables are (i) an <i>independent model</i> and (ii) a <i>preferential model</i>, which we will use depending on whether the data come from an independent or preferential sampling. The models proposed are Bayesian hierarchical models, which means that the model has to layers of parameters: (i) one layer of parameters directly related to the predictor $\eta_i$, called <i>latent parameters</i>, and (ii) a second layer in which the parameters are related to other parameters, called <i>hyperparameters</i>. Let's see this with a small example:
 
 $$
 \left\\{ \eta_i = \beta_0 + \mathbf{X_i}\cdot\boldsymbol\beta + \sum_j f_j(Z_{ij}) + u_i(\rho,\sigma) + \epsilon(\sigma) \right\\} \longleftarrow \text{Latent parameters}
