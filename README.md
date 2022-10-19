@@ -108,7 +108,15 @@ This section allows to upload a data frame by the user (<i>Load Analysis Data Fr
 
 <h2> 3. Model Analysis </h2>
 
-This section presents the inference procedures for spatial data. The two model structures availables are (i) an \textit{independent model} and (ii) a \textit{preferential model}, which we will use depending on whether the data come from an independent or preferential sampling.
+This section presents the inference procedures for spatial data. The two model structures availables are (i) an <i>independent model</i> and (ii) a <i>preferential model</i>, which we will use depending on whether the data come from an independent or preferential sampling. The models proposed are Bayesian hierarchical models, which means that the model has to layers of parameters: (i) one layer of parameters directly related to the predictor $\eta_i$, called <i>latent</i> parameters, and (ii) a second layer in which the parameters are related to other parameters, called <i>hyperparameters</i>. Let's see this with a small example:
+
+$$
+\left\\{ \eta_i = \beta_0 + \mathbf{X_i}\cdot\boldsymbol\beta + \sum_j f_j(Z_{ij}) + u_i(\rho,\sigma) + \epsilon(\sigma) \right\\} \longleftarrow \text{Latent parameters}
+$$
+
+$$
+\left\\{ u_i \sim N(\mathbf{0}, \Sigma(\rho,\sigma))\implies \Sigma(\rho,\sigma)=\sigma\cdot corr(\rho), \\; \epsilon(\sigma)\sim N(0,\sigma)  \right\\} \longleftarrow \text{Hyperparameters}
+$$
 
 <h3> 3.1 Independent Model </h3>
 
@@ -116,8 +124,8 @@ This first model is essentially the structure we have used to simulate the geost
 
 $$
 \begin{array}{c}
-y_i \sim f(y_i|\boldsymbol\theta) \\; : \\; f(\cdot)=\\{N(\cdot) \veebar Gamma(\cdot)\\}, \\
-g(E(y_i)) = g(\mu_i) = \\beta_0 + \mathbf{X_i} \boldsymbol\beta + u_i, \\
+y_i \sim f(y_i|\eta_i, \boldsymbol\theta) \\; : \\; f(\cdot)=\\{N(\cdot) \veebar Gamma(\cdot)\\}, \\
+g(E(y_i)) = g(\mu_i) = \eta_i = \beta_0 + \mathbf{X_i} \boldsymbol\beta + u_i, \\
 \boldsymbol\beta \sim N(\mathbf{0}, \Sigma_\beta) \\; : \\; \Sigma_{\beta}\sim diag(\sqrt{1000}, ..., \sqrt{1000}), \\
 \mathbf{u} \sim N(\mathbf{0}, \Sigma(\rho, \sigma)),\\
 \rho \sim pc_{\rho}(\rho_0, p_{\rho}) \\; : \\; pc_{\rho}(\rho_0, p_{\rho})\equiv \\{ P(\rho < \rho_0)=p_{\rho}\\},\\
@@ -128,8 +136,17 @@ g(E(y_i)) = g(\mu_i) = \\beta_0 + \mathbf{X_i} \boldsymbol\beta + u_i, \\
 \end{array}
 $$
 
+Since there are a lot of termns we'll try to provide a synthetycal explanation of these line by line:
 
-<h3> 3.2 Preferential Moodel </h3>
+- (i) The first line describe the relation between the response or observational variable ($y_i$) and its distribution, giving the predictor $\eta_i$ and all the parameters $\boldsymbol\theta$. The application is focused on continuos variables, hence the gaussian and gamma distribution are the only available.
+- (ii) The next one is the link function $g(\cdot)$ which evalautes the expected value of $y_i$ as $E(y_i)=\mu_i$. The link function could take several shapes, but the most usual are the identity function $g(E(y_i)) = E(y_i)$ for a gaussian likelihoods and the log function $g(E(y_i))=\log\[E(y_i)\]$ for gamma likelihoods. This line could be named as "the model formula" since links the predictor (describe by the explanatory variables) with some expected measure of the observational variable distribution, e. g. the mean is the most common used or it could be modeling the variance instead. Therefore, $\beta_0$ is the intercept, $\beta$
+- (iii) The Bayesian inference implies a definition of prior distributions for the parameters to fit a model, then the third line described the prior distribution of these parameters[^4] (latent field parameters)  
+
+
+
+[^4]: 
+
+<h3> 3.2 Preferential Model </h3>
 
 In preferential sampling processes we have that the sampling process shares information with the underlying phenomon of study, the geostatistical process
 
