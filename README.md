@@ -74,13 +74,13 @@ From the resulting raster map two sample simulations could be done:
 - (i) a <i>independent sampling</i> (iid) or 
 - (ii) a <i>preferential sampling</i> (ps). 
 
-The <i>independent sampling</i> entails that each raster point (datum) has the same probability and it's done by the <code>sample(x, size)</code>[^2] function, where we can specified the vector data $x$ and the $size$ of the sample:
+The <i>independent sampling</i> entails that each raster point (datum) has the same probability and it's done by the <code>sample(x=coord_i, size=n)</code>[^2] function, where we can specified the vector data $x$ and the $size$ of the sample:
 
 $$
 \forall i, \quad p_i = p = cte.
 $$
 
-The <i>preferential sampling</i> implies that the probability for each raster point is related to the geostatistical data:  
+The <i>preferential sampling</i> implies that the probability for each raster point is related to the geostatistical data $y_i$. Then, following the strategy set above we could do this sampling through <code>sample(x=coor_i, size=n, prob=p_i)</code>[^3]:  
 
 $$
 p_i = \frac{\exp[r\cdot y_i]}{\sum_i \exp[r\cdot y_i]\cdot S_i} \propto \exp[r\cdot y_i].
@@ -89,6 +89,7 @@ $$
 
 
 [^2]: In a precise sense use this "method" would be absolutly incorrect, but if the number of samples are much lower than the number of raster points (the number of simulated data) then we could assume this as a valid approximation. The right mode would be simulate a homogeneus point process (homogeneous Poisson), evalauting its intesity function $\lambda$ by the condition over the whole process outcome $\Lambda = \iint \lambda(\mathbf{s}) dS$, the expected number of points $\Lambda$.
+[^3]: We could say the same for preferential sampling as for independent sampling, except that for independent sampling we would do an inhomogeneous Poisson process to correctly simulate the sample.
 
 <h2> 2. Upload data </h2>
 
