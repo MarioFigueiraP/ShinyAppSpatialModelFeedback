@@ -354,7 +354,7 @@ shinyServer(function(input, output, session) {
                           Bathymetry.field=SimMap()$DataSim$DataSim$bathymetry.field)
         ggplot <- ggplot(DFM) + geom_tile(aes(Latitude, Longitude, fill = Bathymetry.field)) + 
             scale_fill_viridis_c(option = "turbo") + theme_bw() + labs(fill="Values") +
-            xlab("Latitude") + ylab("Longitude") + ggtitle("Bathymetric map") +
+            xlab("Latitude") + ylab("Longitude") + ggtitle("Covariate map") +
             theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
         return(ggplot)
     }
@@ -390,7 +390,7 @@ shinyServer(function(input, output, session) {
         DFM <- data.frame(Bathymetry=SimMap()$BathymetryEffect$BathymetryEffect$bathymetry, 
                           Bathimetric.effect=SimMap()$BathymetryEffect$BathymetryEffect$bathymetry.effect)
         ggplot <- ggplot(DFM, aes(x=Bathymetry, y=Bathimetric.effect)) + geom_point() + theme_bw() +
-            xlab("Bathymetry") + ylab("Bathimetric effect") + ggtitle("Bathymetric effect") + labs(fill="Values") +
+            xlab("Bathymetry") + ylab("Covariate effect") + ggtitle("Covariate effect") + labs(fill="Values") +
             theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
         return(ggplot)
     }
@@ -427,7 +427,7 @@ shinyServer(function(input, output, session) {
                           Bathymetry.effect.field=SimMap()$DataSim$DataSim$bathymetry.effect.field)
         ggplot <- ggplot(DFM) + geom_tile(aes(Latitude, Longitude, fill = Bathymetry.effect.field)) + 
             scale_fill_viridis_c(option = "turbo") + theme_bw() +
-            xlab("Latitude") + ylab("Longitude") + ggtitle("Bathymetric effect map") + labs(fill="Values") +
+            xlab("Latitude") + ylab("Longitude") + ggtitle("Covariate effect map") + labs(fill="Values") +
             theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
         return(ggplot)
     }
@@ -464,7 +464,7 @@ shinyServer(function(input, output, session) {
                           Abundance.field=SimMap()$DataSim$DataSim$abundance.field)
         ggplot <- ggplot(DFM) + geom_tile(aes(Latitude, Longitude, fill = Abundance.field)) + 
             scale_fill_viridis_c(option = "turbo") + theme_bw() +
-            xlab("Latitude") + ylab("Longitude") + ggtitle("Abundance map") + labs(fill="Values") +
+            xlab("Latitude") + ylab("Longitude") + ggtitle("Response variable map") + labs(fill="Values") +
             theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
         return(ggplot)
     }
@@ -773,14 +773,14 @@ shinyServer(function(input, output, session) {
       }
       
       if(input$BathymetryRasterSPDE=="raster"){
-        rasterSample <- datareadBathymetricRaster()[sample(1:nrow(datareadBathymetricRaster()), 60),1:2]
+        rasterSample <- datareadBathymetricRaster()[sample(1:nrow(datareadBathymetricRaster()), min(c(60,nrow(datareadBathymetricRaster())))),1:2]
         qloc <- quantile(as.vector(dist(rasterSample)),probs=c(ifelse(input$RandomCustomMesh,input$RandomMeshQloc,0.03),0.3))
           # quantile(as.vector(dist(rasterSample)),probs=c(0.01,0.3))
         mesh <- inla.mesh.2d(loc=cbind(rasterSample[,1],rasterSample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.4), 
                              max.edge=c(qloc[1], qloc[2]))
         sample <- rasterSample
       } else if(input$BathymetryRasterSPDE=="solvebathy"){
-        qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=50),1:2])),probs=c(ifelse(input$RandomCustomMesh,input$RandomMeshQloc,0.03),0.3))
+        qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(ifelse(input$RandomCustomMesh,input$RandomMeshQloc,0.03),0.3))
           # quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=60),1:2])),probs=c(0.01,0.3))
         mesh <- inla.mesh.2d(loc=cbind(DFsample[,1],DFsample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.4), 
                              max.edge=c(qloc[1], qloc[2]))
@@ -1486,13 +1486,13 @@ shinyServer(function(input, output, session) {
             DFsample <- datareadSample()
         }
         if(input$PrefBathymetryRasterSPDE=="raster"){
-            rasterSample <- datareadBathymetricRaster()[sample(1:nrow(datareadBathymetricRaster()), 50),1:2]
+            rasterSample <- datareadBathymetricRaster()[sample(1:nrow(datareadBathymetricRaster()), min(c(50,nrow(datareadBathymetricRaster())))),1:2]
             qloc <- quantile(as.vector(dist(rasterSample)),probs=c(ifelse(input$PPPCustomMesh,input$PrefPPMeshQloc,0.03),0.3))
             mesh <- inla.mesh.2d(loc=cbind(rasterSample[,1],rasterSample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.4), 
                                   max.edge=c(qloc[1], qloc[2]))
             sample <- rasterSample
         } else if(input$PrefBathymetryRasterSPDE=="solvebathy"){
-            qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=50),1:2])),probs=c(ifelse(input$PPPCustomMesh,input$PrefPPMeshQloc,0.03),0.3))
+            qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(ifelse(input$PPPCustomMesh,input$PrefPPMeshQloc,0.03),0.3))
             mesh <- inla.mesh.2d(loc=cbind(DFsample[,1],DFsample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.4), 
                                   max.edge=c(qloc[1], qloc[2]))
             sample <- DFsample

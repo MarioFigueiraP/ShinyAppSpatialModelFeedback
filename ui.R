@@ -22,7 +22,7 @@ if (!require("utils", quietly = TRUE))
 
 if (!require("INLA", quietly = TRUE)){
   # R.version <- readline(prompt = "Are you running this app with the last version of R [y/n]? ")
-  writeLines("The first time, you may need to restart the application when the packages are finished installing. You would notice if the process still on but the app window is closed.")
+  writeLines("The first time, you may need to restart the application when the packages are finish installing. You would notice if the process still on but the app window is closed.")
   R.version <- menu(choices = c("Yes", "No"), title = paste0("Your R version is ", version$major, ".", version$minor, ". Are you running this app on the last version of R?"))
   if(R.version==1){
     install.packages("INLA",repos=c(getOption("repos"),INLA="https://inla.r-inla-download.org/R/stable"), dep=TRUE)
@@ -334,7 +334,7 @@ body <- dashboardBody(
                       br(),
                       tags$div(
                         HTML(
-                          "For the covariate we can define the formula (<i>Bathymetric formula</i>) and choose the effect type:
+                          "For the covariate we can define the formula (<i>Covariate formula</i>) and choose the effect type:
                           <ol> 
                           <li> Linear: the value of its effect will be set in <i> Predictor coefficients</i>.</li>
                           <li> Random walk (1o): we can configure the first order random walk \\(\\Delta x_i= x_i - x_{i-1}=N(0, \\tau)\\) through the following parameters: an initial value \\(x_0\\), the precision \\(\\tau\\), the number of knots for simulate the random walk, and the limit values which can't be traspassing by any \\(x_i\\) of the random walk.</li>
@@ -454,10 +454,10 @@ body <- dashboardBody(
                                                  label=HTML(paste0("Matérn range (\U03C1", tags$sub("0"),"):")),
                                                  value=0.2)),
                                     textInput("bathymetry.formula",
-                                              label="Bathymetry formula (x, y)",
+                                              label="Covariate formula (x, y)",
                                               value="0.5 + (x-min(x)) + 0.8*(y-mean(y))**2 + rnorm(length(x), 0, 0.01)",
                                               placeholder="sqrt(abs(x+y))+x**2+log(y-min(y)+1)"),
-                                    selectInput("typeBathyeff", label="Types of bathymetry effects",
+                                    selectInput("typeBathyeff", label="Types of covariate effects",
                                                 choices=c("Linear"="lin", "Random Walk (1o)"="rw1",  
                                                           "Random Walk (2o)"="rw2", 
                                                           "Custom function"="customfunction")
@@ -554,7 +554,7 @@ body <- dashboardBody(
                                                   btn_overlap = TRUE))
                         ),
                     box(id = "bathymetry.bath.effect", width = 12, status = "info",
-                        title = "Bathymetric map and its effect", solidHeader = TRUE,
+                        title = "Covariate map and its effect", solidHeader = TRUE,
                         collapsible = TRUE, collapsed = FALSE,
                         column(width=6,
                                downloadFileButton(id="ggplotBatChartSim",
@@ -576,7 +576,7 @@ body <- dashboardBody(
                                                   btn_overlap = TRUE))
                         ),
                     box(id = "abundance.batheffect.maps", width = 12, status = "info",
-                        title = "Bathymetric effect map and Abundance map", solidHeader = TRUE,
+                        title = "Covariate effect map and Abundance map", solidHeader = TRUE,
                         collapsible = TRUE, collapsed = FALSE,
                         column(width=6,
                                downloadFileButton(id="ggplotBatEffChartSim",
