@@ -32,7 +32,7 @@ install.packages("dplyr")
 
 The INLA package installation could give some problems or errors[^1], in such case it is desirable to visit the [INLA home page](https://www.r-inla.org/), where the installation is explained in some detail and many FAQ are answered.
 
-[^1]: As far as I know, errors might occur in the intallation process or after using some of its functions, e. g. if we install the default stable version of INLA in Linux Mint 18.2 Sonya we might not be able to solve spatial models or even simulate a spatial effect through <code>inla.qsample()</code> function. The only way I have managed to get INLA to work on Linux Mint 18.2 Sonya was by installing an alternative binary build, specifically using the function <code>  inla.binary.install(os="CentOS Linux-7")</code> over the default installation.
+[^1]: As far as I know, errors might occur in the intallation process or after using some of its functions, e. g. if we install the default stable version of INLA in Linux Mint 18.2 Sonya we might not be able to solve spatial models or even simulate a spatial effect through <code>inla.qsample()</code> function. The only way I have managed to get INLA working on Linux Mint 18.2 Sonya was by installing an alternative binary build, specifically using the function <code>  inla.binary.install(os="CentOS Linux-7")</code> over the default installation.
 
 <h1> Main application sections </h1>
 
@@ -144,6 +144,8 @@ Since there are many terms, we will try to give a synthetic explanation of them 
 - (iv) The following lines are the definition of the hyperparameter prior distributions. We can highlight the penalized prior distributions[^4] for the spatial effect hyperparameters, which allow us to describe the distribution as the probability $(p_\rho,p_\sigma)$ on lower/upper side of $(\rho_0,\sigma_0)$.
 
 [^4]: However, although these pc-prior distributions have a simple interpretation, their shape is still a potential design problem, since we might like to have some areas with homogeneous probability density. That is, it's clear the conceptual significance of pc-prior distributions, regardless that the pc-prior hyperparameters do not describe the function's shape but its tail density probabilities. For further details see [Simpson et al. (2017)](https://projecteuclid.org/journals/statistical-science/volume-32/issue-1/Penalising-Model-Component-Complexity--A-Principled-Practical-Approach-to/10.1214/16-STS576.full) and [Fuglstad et al. (2017)](https://arxiv.org/abs/1503.00256).
+
+Once the fit starts a pop-up message will apear, as well as when the fitting process is finished, showing the time it has taken. Afterwards, we will get some output results: predictive maps of the response variable and spatial effect over the study region, parameter and hyperparameters density plots, summary tables of its characteristic values and the DIC and CPO of the fit.
 
 <h3> 3.2 Preferential Model </h3>
 
