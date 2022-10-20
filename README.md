@@ -93,14 +93,14 @@ $$
 \forall i, \quad p_i = p = cte.
 $$
 
-The <i>preferential sampling</i> implies that the probability for each raster point is related to the geostatistical data $y_i$. Then, following the strategy set above we could do this sampling through <code>sample(x=coor_i, size=n, prob=p_i)</code>[^3]:  
+The <i>preferential sampling</i> implies that the probability for each raster point is related to the geostatistical data $y_i$. Then, following the strategy set above we could do this sampling through <code>sample(x=coord_i, size=n, prob=p_i)</code>[^3]:  
 
 $$
 p_i = \frac{\exp[r\cdot y_i]}{\sum_i \exp[r\cdot y_i]\cdot S_i} \propto \exp[r\cdot y_i].
 $$
 
 [^2]: In a precise sense use this "method" would be absolutly incorrect, but if the number of samples are much lower than the number of raster points (the number of simulated data) then we could assume this as a valid approximation. The right mode would be simulate a homogeneus point process (homogeneous Poisson), evalauting its intesity function $\lambda$ by the condition over the whole process outcome $\Lambda = \iint \lambda(\mathbf{s}) dS$, the expected number of points $\Lambda$.
-[^3]: We could say the same for preferential sampling as for independent sampling, except that for right preferential sampling we would simulate the samples from an inhomogeneous Poisson process.
+[^3]: We could say the same for preferential sampling as for independent sampling, except that for right preferential sampling we would simulate the samples from an inhomogeneous Poisson process, specifically a log Gaussian Cox process (LGCP).
 
 <h2> 2. Upload data </h2>
 
@@ -143,13 +143,49 @@ Since there are many terms, we will try to give a synthetic explanation of them 
 - (iii) The Bayesian inference implies a definition of prior distributions for the parameters to fit a model, then the third line described the prior distribution of these latent parameters.
 - (iv) The following lines are the definition of the hyperparameter prior distributions. We can highlight the penalized prior distributions[^4] for the spatial effect hyperparameters, which allow us to describe the distribution as the probability $(p_\rho,p_\sigma)$ on lower/upper side of $(\rho_0,\sigma_0)$.
 
+Therefore, to perform the fit there are several configuration item which the user has available:
+
+1. the first item allows to choose which data fit, simulated or user loaded one.
+2. Then, it is possible to specify which data are used for the covariates in the prediction: covariate solve by a SPDE model in the prediction grid or predicting on the covariate raster loaded coordinates.
+3. The three next items are related to the dimensionality of the prediction grid, spatial effect map resolution and the mesh density. <!--Since the prediction grid and spatial effect--> Mesh density is rule by the <code>Qloc</code> parameter, which is the quantile location from the distance distribution density matrix of the coordinates.
+4. The following items are related to the fixed effects, covariates, spatial effects and the family likelihood hyperparameters.
+5. Finally, we have the <i>Advanced INLA configuration</i>, in which the user can specify: 
+    - the INLA approximation strategy,
+    - the INLA integration strategy,
+    - and the modes for the hyperparameters.
+
 [^4]: However, although these pc-prior distributions have a simple interpretation, their shape is still a potential design problem, since we might like to have some areas with homogeneous probability density. That is, it's clear the conceptual significance of pc-prior distributions, regardless that the pc-prior hyperparameters do not describe the function's shape but its tail density probabilities. For further details see [Simpson et al. (2017)](https://projecteuclid.org/journals/statistical-science/volume-32/issue-1/Penalising-Model-Component-Complexity--A-Principled-Practical-Approach-to/10.1214/16-STS576.full) and [Fuglstad et al. (2017)](https://arxiv.org/abs/1503.00256).
 
 Once the fit starts a pop-up message will apear, as well as when the fitting process is finished, showing the time it has taken. Afterwards, we will get some output results: predictive maps of the response variable and spatial effect over the study region, parameter and hyperparameters density plots, summary tables of its characteristic values and the DIC and CPO of the fit.
 
 <h3> 3.2 Preferential Model </h3>
 
-In preferential sampling processes we have that the sampling process shares information with the underlying phenomon of study, the geostatistical process
+The second model is a joint model, in which we assume that some process are connected, at least we will assume that the spatial effect is linked. It means that the geostatistical process, which "generates" our variable of interest $y_i\sim f(y_i|\eta_{Gi},\boldsymbol\theta_G)$, and the point process, which "generates" the locations $s_i\sim LGCP(s_i|\eta_{Pi},\boldsymbol\theta_P)$, have bounded thier spatial effects $\mathbf{u}(\rho,\sigma)$. It can be clarified by showing the model, as was done for the independent model:
+
+$$
+\begin{array}{c}
+y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta_G) \\; : \\; f(\cdot)=\\{N(\cdot) \veebar Gamma(\cdot)\\}, \\
+s_i \sim LGCP(s_i|\eta_{Pi}, \boldsymbol\theta_P), \\
+g(\mu_i) = \eta_{Gi} = \beta_{G0} + \mathbf{X_i} \boldsymbol\beta_G + u_i, \\
+\log(\lambda_i) = \eta_i' = \beta_{P0} + \mathbf{X_i} \boldsymbol\beta_P + \alpha \cdot u_i, \\
+\boldsymbol\beta \sim N(\mathbf{0}, \Sigma_\beta) \\; : \\; \Sigma_{\beta}\sim diag(\sqrt{1000}, ..., \sqrt{1000}), \\; \boldsymbol\beta=\\{\boldsymbol\beta_G\cup\boldsymbol\beta_P\\}, \\
+\mathbf{u} \sim N(\mathbf{0}, \Sigma(\rho, \sigma)),\\
+\rho \sim pc_{\rho}(\rho_0, p_{\rho}) \\; : \\; pc_{\rho}(\rho_0, p_{\rho})\equiv \\{ P(\rho < \rho_0)=p_{\rho}\\},\\
+\rho_0 = size/2, \\; p_{\rho} = 1/2,\\
+\sigma \sim pc_{\sigma}(\sigma_{0}, p_{\sigma}) \\; : \\; pc_{\sigma}(\sigma_0, p_{\sigma})\equiv \\{ P(\sigma > \sigma_0)=p_{\sigma}\\},\\
+\sigma_0 = 1, \\; p_{\sigma} = 1/2,\\
+\alpha \sim N(0,0.001),\\
+\log(\tau) \sim log-Gamma(1, 0.00005).
+\end{array}
+$$
+
+Most of the elements are identical to those shown for the independent model, with the exception that there are two likelihoods and that the spatial effect is linked between them. This bounded spatial effect is scaled by a factor $\alpha$, which is estimated in the fitting process as one hyperparameter. Therefore, the configuration options for this section are essentially the same as for the previous one, but in the <i>Advanced INLA configuration</i> the user can specify the values for the $\alpha$ prior distribution.
+
+<h3> 3.3 Feedback </h3>
+
+Through the control options, from the specification of the prior distributions, a pseudo Bayesian feedback can be performed. That is, from the results obtained in the tables for the latent parameters and hyperparameters, the user can specify in the control options the means and precisions[^5] of these posterior distributions. In the case of penalized distributions, the values for $\rho$ and $\sigma$ can be specified in one of the available quantiles.
+
+[^5]: The tables shown the values of the standar deviation $\sigma$ but its tranformation into the precision parameter $\tau$ is as simple as $\tau=\sigma^{-2}$.
 
 
 
