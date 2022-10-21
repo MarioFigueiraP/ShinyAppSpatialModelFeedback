@@ -19,7 +19,7 @@ install.packages("periscope")
 install.packages("splines")
 install.packages("INLA",
   repos=c(getOption("repos"),INLA="https://inla.r-inla-download.org/R/stable"), 
-  dep=TRUE) # It is a core package for the app.
+  dep=TRUE)
 install.packages("inlabru")
 install.packages("ggplot2")
 install.packages("lattice")
