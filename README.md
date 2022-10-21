@@ -84,8 +84,8 @@ The steps for its simulation are:
 
 From the resulting raster map two sample simulations could be done: 
 
-- (i) a <i>independent sampling</i> (iid) or 
-- (ii) a <i>preferential sampling</i> (ps). 
+- (i) an <i>independent sampling</i> or 
+- (ii) a <i>preferential sampling</i>. 
 
 The <i>independent sampling</i> entails that each raster point (datum) has the same probability and it's done by the <code>sample(x=coord_i, size=n)</code>[^2] function, where we can specified the vector data $x$ and the $size$ of the sample:
 
