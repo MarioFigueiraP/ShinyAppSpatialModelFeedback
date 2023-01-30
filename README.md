@@ -183,7 +183,7 @@ Most of the elements are identical to those shown for the independent model, wit
 
 <h3> 3.3 Feedback </h3>
 
-Through the control options, from the specification of the prior distributions, a <i>pseudo Bayesian feedback</i> can be performed. That is, from the results obtained in the tables for the latent parameters and hyperparameters, the user can specify in the control options the means and precisions[^5] of these posterior distributions. In the case of penalized distributions, the values for $\rho$ and $\sigma$ can be specified in one of the available quantiles.
+Through the control options, from the specification of the prior distributions, a <i>Bayesian feedback by moment updating</i> can be performed. That is, from the results obtained in the tables for the latent parameters and hyperparameters, the user can specify in the control options the means and precisions[^5] of these posterior distributions. In the case of penalized distributions, the values for $\rho$ and $\sigma$ can be specified in one of the available quantiles.
 
 [^5]: The tables shown the values of the standar deviation $\sigma$ but its tranformation into the precision parameter $\tau$ is as simple as $\tau=\sigma^{-2}$.
 
