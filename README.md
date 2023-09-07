@@ -205,15 +205,20 @@ Most of the elements are identical to those shown for the independent model, wit
 
 <h3> 3.4 Mixture Model </h3>
 
-In the Mixture Model we assume that the wole data $\mathbf{Y}$ is a mixture of different data sets $\mathbf{Y}=\cup_{j=1}^{m} \mathbf{Y}_j$ coming from $m$ different sampling structures. Therefore, the Mixture Model can be defined as    
+In the Mixture Model we assume that the wole data $\mathbf{Y}$ is a mixture of different data sets $\mathbf{Y}=\cup_{j=1}^{m} \mathbf{Y}_j$ coming from $m$ different sampling structures. Therefore, the Mixture Model have the same geostatistical structured as the models above
 
 $$
 \begin{array}{c}
 y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta_G), \\
-s_{ij} \sim LGCP(s_i|\eta_{Pij}, \boldsymbol\theta_{Pj}), \\
 g(\mu_{i}) = \eta_{Gi} = \beta_{G0} + \mathbf{X_i} \boldsymbol\beta_G + u_i, \\
-\log(\lambda_{ij}) = \sum_j a_{ij} \cdot \left\lbrace \beta_{P0j} + \mathbf{X}_{ij} \boldsymbol\beta_{Pj} + \alpha_{ij} \cdot u_{ij} \right\rbrace, \\
 \end{array}
+$$
+
+yet the point process layer is splited in $J$ denpendent samplers, $Y=\cup_{j=1}^m Y_j$ (if every $j$ set comes from a preferred sampling then $J=m$),
+
+$$
+\mathbf{s}_j \sim  LGCP(\mathbf{s}_j|\eta_{Pj}, \boldsymbol\theta_{Pj}),\\
+\log(\lambda_{ij}) = \sum_j a_{ij} \cdot \left\lbrace \beta_{P0j} + \mathbf{X}_{ij} \boldsymbol\beta_{Pj} + \alpha_{ij} \cdot u_{ij} \right\rbrace, \\
 $$
 
 where $a_{ij}$ is a binary value $(0,1)$ indexing the $i$-th observation belonging to the $j$-th sampler, such that $a_{ij}$ is equal to $1$ if and only if the $i$-th observation belongs to the $j$-th sampler, other way its value is equal to zero.
