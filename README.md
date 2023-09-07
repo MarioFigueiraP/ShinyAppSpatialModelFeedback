@@ -41,9 +41,9 @@ The app is made up of four major blocks:
 1. Introduction: a brief introduction for the app.
 2. Data Simulation: in this section is possible to simulate some spatial data.
 3. Upload Data: it allows to read some data frame, but there are some rules in which the data must be configure in order to be read properly.
-4. Model Analysis: in this section the simulated or uploaded data can be analyzed by the two available model structures, a geoestatistical model or a specific spatial joint model.
+4. Model Analysis: in this section the simulated or uploaded data can be analyzed by the three available model structures, a geoestatistical model (independent model), specific spatial joint model (dependent model) or a joint model with heterogeneous point process structure (mixture model).
 
-*Data Simulation* and *Upload Data* are sequentially linked to *Model Anaysis*, which means that data from one of the former are taken in the latter. Once the modelling is done, these results can be used to provide feedback or to perform a sequential learning process for a new data set from the same geostatistical phenomenon that could be modeled by one of the two proposed model structures, thanks to the control options available in INLA and configurable in this application.
+*Data Simulation* and *Upload Data* are sequentially linked to *Model Anaysis*, which means that data from one of the former are taken in the latter. Once the modelling is done, these results can be used to provide feedback or to perform a sequential learning process for a new data set from the same geostatistical phenomenon that could be modeled by one of the three proposed model structures, thanks to the control options available in INLA and configurable in this application.
 
 ```mermaid
 flowchart TD
@@ -60,12 +60,12 @@ flowchart TD
 
 <h2> 1. Data Simulation </h2>
 
-Since the objective is to model spatial data sets, a section is provided within the tool to simulate spatial data by controlling their constitutive parameters. It means that we can build a sptail data set with which we could test the performance of the spatial analysis. Therefore, here we build a geostatistical data set from the following model structure:
+Since the objective is to model spatial datasets, a section is provided within the tool to simulate spatial data by controlling their constitutive parameters. It means that we can build a spatial dataset with which we could test the performance of the spatial analysis. Therefore, here we build a geostatistical dataset from the following model structure:
 
 $$
 \begin{array}{c}
 y_i \sim f(y_i|\boldsymbol\theta),\\
-g(E(y_i)) = g(\mu_i) = \\beta_0 + \mathbf{X}_i\boldsymbol\beta + u_i.
+g(E(y_i)) = g(\mu_i) = \\beta_0 + f_X(x_i) + u_i.
 \end{array}
 $$
 
@@ -82,18 +82,19 @@ The steps for its simulation are:
 - (v) Establish the coefficients for the intercep and for the covariate if it is a linear effect, and indicate the value of the likelihood variance.
 - (vi) Finally, simulate the observational data from a Gaussian or a Gamma distribution.
 
-From the resulting raster map two sample simulations could be done: 
+From the resulting raster map three sample simulations could be done: 
 
-- (i) an <i>independent sampling</i> or 
-- (ii) a <i>preferential sampling</i>. 
+- (i) an <i>independent sampling</i>, 
+- (ii) a <i>preferential sampling</i> or
+- (iii) a mixture of two  <i>preferential samples</i>.
 
-The <i>independent sampling</i> entails that each raster point (datum) has the same probability and it's done by the <code>sample(x=coord_i, size=n)</code>[^2] function, where we can specified the vector data $x$ and the $size$ of the sample:
+The <i>independent sampling</i> entails that each raster point (each datum) has the same probability and it's done by the <code>sample(x=coord_i, size=n)</code>[^2] function, where we can specified the vector data $x$ and the $size$ of the sample:
 
 $$
 \forall i, \quad p_i = p = cte.
 $$
 
-The <i>preferential sampling</i> implies that the probability for each raster point is related to the geostatistical data $y_i$. Then, following the strategy set above we could do this sampling through <code>sample(x=coord_i, size=n, prob=p_i)</code>[^3]:  
+The <i>preferential sampling</i> implies that the probability for each raster point is related to the geostatistical data $y_i$. Then, following the strategy set above we could do this sampling through <code>sample(x=coord_i, size=n, prob=p_i)</code>[^3]:
 
 $$
 p_i = \frac{\exp[r\cdot y_i]}{\sum_i \exp[r\cdot y_i]\cdot S_i} \propto \exp[r\cdot y_i].
@@ -108,7 +109,7 @@ This section allows to upload a data frame by the user (<i>Load Analysis Data Fr
 
 <h2> 3. Model Analysis </h2>
 
-This section presents the inference procedures for spatial data. The two model structures availables are (i) an <i>independent model</i> and (ii) a <i>preferential model</i>, which we will use depending on whether the data come from an independent or preferential sampling. The models proposed are Bayesian hierarchical models, which means that the model has to layers of parameters: (i) one layer of parameters directly related to the predictor $\eta_i$, called <i>latent parameters</i>, and (ii) a second layer in which the parameters are related to other parameters, called <i>hyperparameters</i>. Let's see this with a small example:
+This section presents the inference procedures for spatial data. The three model structures availables are (i) an <i>independent model</i>, (ii) a <i>preferential model</i> and a <i>mixture model</i>, which we will use depending on whether the data come from an independent, preferential sampling or a data mixture from different samplers. The models proposed are Bayesian hierarchical models, which means that the model has to layers of parameters: (i) one layer of parameters directly related to the predictor $\eta_i$, called <i>latent parameters</i>, and (ii) a second layer in which the parameters are related to other parameters, called <i>hyperparameters</i>. Let's see this with a small example:
 
 $$
 \left\\{ \eta_i = \beta_0 + \mathbf{X_i}\cdot\boldsymbol\beta + \sum_j f_j(Z_{ij}) + u_i(\rho,\sigma) + \epsilon(\sigma) \right\\} \longleftarrow \text{Latent parameters}
@@ -120,14 +121,27 @@ $$
 
 <h3> 3.1 Independent Model </h3>
 
-This first model is essentially the structure we have used to simulate the geostatistical data, but since we will now perform a Bayesian inference analysis the schema needs further specification: 
+This first model is essentially the structure we have used to simulate the geostatistical data, but since we will now perform a Bayesian inference analysis the schema needs further specification. The data distribution and the linear predictor linked to expected value are 
 
 $$
 \begin{array}{c}
-y_i \sim f(y_i|\eta_i, \boldsymbol\theta) \\; : \\; f(\cdot)=\\{N(\cdot) \veebar Gamma(\cdot)\\}, \\
-g(E(y_i)) = g(\mu_i) = \eta_i = \beta_0 + \mathbf{X_i} \boldsymbol\beta + u_i, \\
-\boldsymbol\beta \sim N(\mathbf{0}, \Sigma_\beta) \\; : \\; \Sigma_{\beta}\sim diag(\sqrt{1000}, ..., \sqrt{1000}), \\
+y_i \sim f(y_i|\eta_i, \boldsymbol\theta),\\
+g(E(y_i)) = g(\mu_i) = \eta_i = \beta_0 + \mathbf{X_i} \boldsymbol\beta + u_i,\\
+\end{array}
+$$
+
+where $f(y_i|\eta_i, \boldsymbol\theta)$ is the distribution for $\mathbf{Y}$ given the linear predictor structure $\boldsymbol\eta$ and the set of hyperparameters $\boldsymbol\theta$. Then ,as we have stated before, the <i>linear predictor</i> or the <i>latent field</i> has a gaussian structure, which implies that each random effect element or the fixed effects must follow a Gaussian distribution, 
+
+$$
+\begin{array}{c}
+\boldsymbol\beta \sim N(\mathbf{0}, \Sigma_\beta) \\; : \\; \Sigma_{\beta}\sim diag(\sqrt{1000}, ..., \sqrt{1000}),\\
 \mathbf{u} \sim N(\mathbf{0}, \Sigma(\rho, \sigma)),\\
+\end{array}
+$$
+
+
+$$
+\begin{array}
 \rho \sim pc_{\rho}(\rho_0, p_{\rho}) \\; : \\; pc_{\rho}(\rho_0, p_{\rho})\equiv \\{ P(\rho < \rho_0)=p_{\rho}\\},\\
 \rho_0 = size/2, \\; p_{\rho} = 1/2,\\
 \sigma \sim pc_{\sigma}(\sigma_{0}, p_{\sigma}) \\; : \\; pc_{\sigma}(\sigma_0, p_{\sigma})\equiv \\{ P(\sigma > \sigma_0)=p_{\sigma}\\},\\
