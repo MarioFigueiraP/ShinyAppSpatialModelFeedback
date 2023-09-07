@@ -179,7 +179,7 @@ The second model is a joint model, in which we assume that some process are conn
 
 $$
 \begin{array}{c}
-y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta_G) \\; : \\; f(\cdot)=\\{N(\cdot) \veebar Gamma(\cdot)\\}, \\
+y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta_G), \\
 s_i \sim LGCP(s_i|\eta_{Pi}, \boldsymbol\theta_P), \\
 g(\mu_i) = \eta_{Gi} = \beta_{G0} + \mathbf{X_i} \boldsymbol\beta_G + u_i, \\
 \log(\lambda_i) = \eta_i' = \beta_{P0} + \mathbf{X_i} \boldsymbol\beta_P + \alpha \cdot u_i, \\
@@ -209,10 +209,10 @@ In the Mixture Model we assume that the wole data $\mathbf{Y}$ is a mixture of d
 
 $$
 \begin{array}{c}
-y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta_G) \\; : \\; f(\cdot)=\\{N(\cdot) \veebar Gamma(\cdot)\\}, \\
+y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta_G), \\
 s_{ij} \sim LGCP(s_i|\eta_{Pij}, \boldsymbol\theta_{Pj}), \\
 g(\mu_{i}) = \eta_{Gi} = \beta_{G0} + \mathbf{X_i} \boldsymbol\beta_G + u_i, \\
-\log(\lambda_ij) = \eta_{ij}' = \sum_j=1^{m} a_{ij} \cdot \left( \beta_{P0j} + \mathbf{X_ij} \boldsymbol\beta_{Pj} + \alpha_{j} \cdot u_i \rigth), \\
+\log(\lambda_{ij}) = \eta_{ij}' = \sum_{j=1}^{m} a_{ij} \cdot \left[ \beta_{P0j} + \mathbf{X_ij} \boldsymbol\beta_{Pj} + \alpha_{ij} \cdot u_{ij} \rigth], \\
 \end{array}
 $$
 
