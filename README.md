@@ -212,7 +212,7 @@ $$
 y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta_G) \\; : \\; f(\cdot)=\\{N(\cdot) \veebar Gamma(\cdot)\\}, \\
 s_{ij} \sim LGCP(s_i|\eta_{Pij}, \boldsymbol\theta_{Pj}), \\
 g(\mu_{i}) = \eta_{Gi} = \beta_{G0} + \mathbf{X_i} \boldsymbol\beta_G + u_i, \\
-\log(\lambda_ij) = \eta_{ij}' = \sum_j=1^{m} a_{ij} \cdot \left[ \beta_{P0j} + \mathbf{X_ij} \boldsymbol\beta_{Pj} + \alpha_{j} \cdot u_i \rigth], \\
+\log(\lambda_ij) = \eta_{ij}' = \sum_j=1^{m} a_{ij} \cdot \left( \beta_{P0j} + \mathbf{X_ij} \boldsymbol\beta_{Pj} + \alpha_{j} \cdot u_i \rigth), \\
 \end{array}
 $$
 
