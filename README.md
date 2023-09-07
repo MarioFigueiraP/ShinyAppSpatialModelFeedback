@@ -211,8 +211,6 @@ $$
 \begin{array}{c}
 y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta_G), \\
 s_{ij} \sim LGCP(s_i|\eta_{Pij}, \boldsymbol\theta_{Pj}), \\
-g(\mu_{i}) = \eta_{Gi} = \beta_{G0} + \mathbf{X_i} \boldsymbol\beta_G + u_i, \\
-\log(\lambda_{ij}) = \eta_{ij}' = \sum_{j=1}^{m} a_{ij} \cdot \left[ \beta_{P0j} + \mathbf{X_ij} \boldsymbol\beta_{Pj} + \alpha_{ij} \cdot u_{ij} \rigth], \\
 \end{array}
 $$
 
