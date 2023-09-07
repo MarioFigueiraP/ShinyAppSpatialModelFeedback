@@ -52,10 +52,10 @@ flowchart TD
     C[Upload Data]-->D[Model Analysis]
     D[Model Analysis]-.->E[Independent Model]
     D[Model Analysis]-.->F[Preferential Model]
-    E-- Feedback --> G[Independent Model]
-    E-- Feedback --> H[Preferential Model]
-    F-- Feedback --> I[Independent Model]
-    F-- Feedback --> J[Preferential Model]
+    D[Model Analysis]-.->G[Mixture Model] 
+    E-- Feedback --> H[Alternative Model]
+    F-- Feedback --> I[Alternative Model]
+    G-- Feedback --> J[Alternative Model]
 ```
 
 <h2> 1. Data Simulation </h2>
@@ -130,15 +130,16 @@ g(E(y_i)) = g(\mu_i) = \eta_i = \beta_0 + \mathbf{X_i} \boldsymbol\beta + u_i,\\
 \end{array}
 $$
 
-where $f(y_i|\eta_i, \boldsymbol\theta)$ is the distribution for $\mathbf{Y}$ given the linear predictor structure $\boldsymbol\eta$ and the set of hyperparameters $\boldsymbol\theta$. Then ,as we have stated before, the <i>linear predictor</i> or the <i>latent field</i> has a gaussian structure, which implies that each random effect element or the fixed effects must follow a Gaussian distribution, 
+where $f(y_i|\eta_i, \boldsymbol\theta)$ is the distribution for $\mathbf{Y}$ given the linear predictor structure $\boldsymbol\eta$ and the set of hyperparameters $\boldsymbol\theta$. Then, as we have stated before, the <i>linear predictor</i> or the <i>latent field</i> has a gaussian structure, which implies that each random effect element or the fixed effects must follow a Gaussian distribution, 
 
 $$
 \begin{array}{c}
 \boldsymbol\beta \sim N(\mathbf{0}, \Sigma_\beta) \\; : \\; \Sigma_{\beta}\sim diag(\sqrt{1000}, ..., \sqrt{1000}),\\
-\mathbf{u} \sim N(\mathbf{0}, \Sigma(\rho, \sigma)),\\
+\mathbf{u} \sim N(\mathbf{0}, \Sigma(\rho, \sigma)).\\
 \end{array}
 $$
 
+Finally, the hyperparameter prior distributions  can be defined as a PC-prior, Uniform, Flat Uniform or log-gamma distribution
 
 $$
 \begin{array}
@@ -161,8 +162,8 @@ Therefore, to perform the fit there are several configuration item which the use
 
 1. the first item allows to choose which data fit, simulated or user loaded one.
 2. Then, it is possible to specify which data are used for the covariates in the prediction: covariate solve by a SPDE model in the prediction grid or predicting on the covariate raster loaded coordinates.
-3. The three next items are related to the dimensionality of the prediction grid, spatial effect map resolution and the mesh density. <!--Since the prediction grid and spatial effect--> Mesh density is rule by the <code>Qloc</code> parameter, which is the quantile location from the distance distribution density matrix of the coordinates.
-4. The following items are related to the fixed effects, covariates, spatial effects and the family likelihood hyperparameters.
+3. The next items are related to the dimensionality of the prediction grid, spatial effect map resolution and the mesh configuration. <!--Since the prediction grid and spatial effect--> The mesh can be modified trough <code>Custom mesh</code> panel, where inner and outer boundaries can be set as well as the mesh node density, which is rule by the <code>Quantile location</code> or the <code>Edge length</code> parameters.
+4. The following items are related to the likelihood distribution, explanatory variables (fixed or random effects), spatial effects and the family likelihood hyperparameter.
 5. Finally, we have the <i>Advanced INLA configuration</i>, in which the user can specify: 
     - the INLA approximation strategy,
     - the INLA integration strategy,
@@ -174,7 +175,7 @@ Once the fit starts a pop-up message will apear, as well as when the fitting pro
 
 <h3> 3.2 Preferential Model </h3>
 
-The second model is a joint model, in which we assume that some process are connected, at least we will assume that the spatial effect is linked. It means that the geostatistical process, which "generates" our variable of interest $y_i\sim f(y_i|\eta_{Gi},\boldsymbol\theta_G)$, and the point process, which "generates" the locations $s_i\sim LGCP(s_i|\eta_{Pi},\boldsymbol\theta_P)$, have bounded thier spatial effects $\mathbf{u}(\rho,\sigma)$. It can be clarified by showing the model, as was done for the independent model:
+The second model is a joint model, in which we assume that some process are connected, at least we will assume that the spatial effect is linked. It means that the geostatistical process, which "generates" our variable of interest $y_i\sim f(y_i|\eta_{Gi},\boldsymbol\theta_G)$, and the point process, which "generates" the locations $s_i\sim LGCP(s_i|\eta_{Pi},\boldsymbol\theta_P)$, have bounded thier spatial effects $\mathbf{u}(\rho,\sigma)$. It can be clarified by showing the model, as it was done for the independent model:
 
 $$
 \begin{array}{c}
@@ -182,6 +183,11 @@ y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta_G) \\; : \\; f(\cdot)=\\{N(\cdot) \v
 s_i \sim LGCP(s_i|\eta_{Pi}, \boldsymbol\theta_P), \\
 g(\mu_i) = \eta_{Gi} = \beta_{G0} + \mathbf{X_i} \boldsymbol\beta_G + u_i, \\
 \log(\lambda_i) = \eta_i' = \beta_{P0} + \mathbf{X_i} \boldsymbol\beta_P + \alpha \cdot u_i, \\
+\end{array}
+$$
+
+where we have defined the observation and sample latent structures (geostatistical and point process layer). The latent element distributions and the hyperpameter prior distributions follow the same structure as for the independent model 
+
 \boldsymbol\beta \sim N(\mathbf{0}, \Sigma_\beta) \\; : \\; \Sigma_{\beta}\sim diag(\sqrt{1000}, ..., \sqrt{1000}), \\; \boldsymbol\beta=\\{\boldsymbol\beta_G\cup\boldsymbol\beta_P\\}, \\
 \mathbf{u} \sim N(\mathbf{0}, \Sigma(\rho, \sigma)),\\
 \rho \sim pc_{\rho}(\rho_0, p_{\rho}) \\; : \\; pc_{\rho}(\rho_0, p_{\rho})\equiv \\{ P(\rho < \rho_0)=p_{\rho}\\},\\
@@ -193,7 +199,9 @@ g(\mu_i) = \eta_{Gi} = \beta_{G0} + \mathbf{X_i} \boldsymbol\beta_G + u_i, \\
 \end{array}
 $$
 
-Most of the elements are identical to those shown for the independent model, with the exception that there are two likelihoods and that the spatial effect is linked between them. This bounded spatial effect is scaled by a factor $\alpha$, which is estimated in the fitting process as one hyperparameter. Therefore, the configuration options for this section are essentially the same as for the previous one, but in the <i>Advanced INLA configuration</i> the user can specify the values for the $\alpha$ prior distribution.
+Most of the elements are identical to those shown for the independent model, with the exception that there are two likelihoods and that the spatial effect is linked between them. The main different is that we can set wich elements share their effects though the geostatistical and point process layer. Therefore, the configuration options for this section are essentially the same as for the previous one, but in the <i>Advanced INLA configuration</i> the user can specify the values for the sharing effect prior distributions.
+
+<h3> 3.4 Mixture Model </h3>
 
 <h3> 3.3 Feedback </h3>
 
