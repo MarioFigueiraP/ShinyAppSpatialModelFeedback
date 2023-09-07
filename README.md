@@ -212,11 +212,11 @@ $$
 y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta_G), \\
 s_{ij} \sim LGCP(s_i|\eta_{Pij}, \boldsymbol\theta_{Pj}), \\
 g(\mu_{i}) = \eta_{Gi} = \beta_{G0} + \mathbf{X_i} \boldsymbol\beta_G + u_i, \\
-\log(\lambda_{ij}) = \eta_{ij}' = \sum_{j=1}^{m} a_{ij} \cdot \left\lbrace \beta_{P0j} + \mathbf{X}_{ij} \boldsymbol\beta_{Pj} + \alpha_{ij} \cdot u_{ij} \right\rbrace, \\
+\log(\lambda_{ij}) =, \\
 \end{array}
 $$
 
-where $a_j$ is a binary value $(0,1)$ indexing the $i$-th observation belonging to the $j$-th sampler, such that $a_{ij}$ is equal to $1$ if and only if the $i$-th observation belongs to the $j$-th sampler, other way its value is equal to zero.
+where $a_{ij}$ is a binary value $(0,1)$ indexing the $i$-th observation belonging to the $j$-th sampler, such that $a_{ij}$ is equal to $1$ if and only if the $i$-th observation belongs to the $j$-th sampler, other way its value is equal to zero.
 
 Finally, the latent element distributions and the hyperpameter prior distributions follow the same structure as for the independent and preferential models.
 
