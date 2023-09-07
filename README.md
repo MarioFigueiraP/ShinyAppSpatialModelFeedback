@@ -188,6 +188,8 @@ $$
 
 where we have defined the observation and sample latent structures (geostatistical and point process layer). The latent element distributions and the hyperpameter prior distributions follow the same structure as for the independent model 
 
+$$
+\begin{array}{c}
 \boldsymbol\beta \sim N(\mathbf{0}, \Sigma_\beta) \\; : \\; \Sigma_{\beta}\sim diag(\sqrt{1000}, ..., \sqrt{1000}), \\; \boldsymbol\beta=\\{\boldsymbol\beta_G\cup\boldsymbol\beta_P\\}, \\
 \mathbf{u} \sim N(\mathbf{0}, \Sigma(\rho, \sigma)),\\
 \rho \sim pc_{\rho}(\rho_0, p_{\rho}) \\; : \\; pc_{\rho}(\rho_0, p_{\rho})\equiv \\{ P(\rho < \rho_0)=p_{\rho}\\},\\
@@ -202,6 +204,21 @@ $$
 Most of the elements are identical to those shown for the independent model, with the exception that there are two likelihoods and that the spatial effect is linked between them. The main different is that we can set wich elements share their effects though the geostatistical and point process layer. Therefore, the configuration options for this section are essentially the same as for the previous one, but in the <i>Advanced INLA configuration</i> the user can specify the values for the sharing effect prior distributions.
 
 <h3> 3.4 Mixture Model </h3>
+
+In the Mixture Model we assume that the wole data $\mathbf{Y}$ is a mixture of different data sets $\mathbf{Y}=\cup_{j=1}^{m} \mathbf{Y}_j$ coming from $m$ different sampling structures. Therefore, the Mixture Model can be defined as    
+
+$$
+\begin{array}{c}
+y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta_G) \\; : \\; f(\cdot)=\\{N(\cdot) \veebar Gamma(\cdot)\\}, \\
+s_{ij} \sim LGCP(s_i|\eta_{Pij}, \boldsymbol\theta_{Pj}), \\
+g(\mu_{i}) = \eta_{Gi} = \beta_{G0} + \mathbf{X_i} \boldsymbol\beta_G + u_i, \\
+\log(\lambda_ij) = \eta_{ij}' = \sum_j=1^{m} a_{ij} \cdot \left[ \beta_{P0j} + \mathbf{X_ij} \boldsymbol\beta_{Pj} + \alpha_{j} \cdot u_i \rigth], \\
+\end{array}
+$$
+
+where $a_j$ is a binary value $(0,1)$ indexing the $i$-th observation belonging to the $j$-th sampler, such that $a_{ij}$ is equal to $1$ if and only if the $i$-th observation belongs to the $j$-th sampler, other way its value is equal to zero.
+
+Finally, the latent element distributions and the hyperpameter prior distributions follow the same structure as for the independent and preferential models.
 
 <h3> 3.3 Feedback </h3>
 
