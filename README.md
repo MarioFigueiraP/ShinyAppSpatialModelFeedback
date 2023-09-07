@@ -217,8 +217,10 @@ $$
 yet the point process layer is splited in $J$ denpendent samplers, $Y=\cup_{j=1}^m Y_j$ (if every $j$ set comes from a preferred sampling then $J=m$),
 
 $$
-\mathbf{s}_j \sim  LGCP(\mathbf{s}_j|\eta_{Pj}, \boldsymbol\theta_{Pj}),\\
-\log(\lambda_{ij}) = \sum_j a_{ij} \cdot \left\lbrace \beta_{P0j} + \mathbf{X}_{ij} \boldsymbol\beta_{Pj} + \alpha_{ij} \cdot u_{ij} \right\rbrace, \\
+\begin{array}{c}
+\mathbf{s}_j \sim  LGCP(\mathbf{s}_j | \eta_{Pj}, \boldsymbol\theta_{Pj}),\\
+
+\end{array}
 $$
 
 where $a_{ij}$ is a binary value $(0,1)$ indexing the $i$-th observation belonging to the $j$-th sampler, such that $a_{ij}$ is equal to $1$ if and only if the $i$-th observation belongs to the $j$-th sampler, other way its value is equal to zero.
