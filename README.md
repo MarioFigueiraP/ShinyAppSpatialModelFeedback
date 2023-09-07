@@ -211,6 +211,7 @@ $$
 \begin{array}{c}
 y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta_G), \\
 s_{ij} \sim LGCP(s_i|\eta_{Pij}, \boldsymbol\theta_{Pj}), \\
+g(\mu_{i}) = \eta_{Gi} = \beta_{G0} + \mathbf{X_i} \boldsymbol\beta_G + u_i, \\
 \end{array}
 $$
 
