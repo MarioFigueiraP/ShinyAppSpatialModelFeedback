@@ -218,7 +218,8 @@ yet the point process layer is splited in $J$ denpendent samplers, $Y=\cup_{j=1}
 
 $$
 \begin{array}{c}
-\mathbf{s}_j \sim  LGCP(\mathbf{s}_j | \eta_{Pj}, \boldsymbol\theta_{Pj}),\\
+\mathbf{s} _ j \sim  LGCP(\mathbf{s} _ j | \eta_{Pj}, \boldsymbol\theta_{Pj}), \\
+\log(\lambda_{ij}) = \sum_j a_{ij} \cdot \left\lbrace \beta_{P0j} + \mathbf{X} _ {ij} \boldsymbol\beta_{Pj} + \alpha_{ij} \cdot u_{ij} \right\rbrace, \\
 \end{array}
 $$
 
