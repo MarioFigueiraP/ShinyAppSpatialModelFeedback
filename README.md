@@ -142,7 +142,7 @@ $$
 Finally, the hyperparameter prior distributions  can be defined as a PC-prior, Uniform, Flat Uniform or log-gamma distribution
 
 $$
-\begin{array}
+\begin{array}{c}
 \rho \sim pc_{\rho}(\rho_0, p_{\rho}) \\; : \\; pc_{\rho}(\rho_0, p_{\rho})\equiv \\{ P(\rho < \rho_0)=p_{\rho}\\},\\
 \rho_0 = size/2, \\; p_{\rho} = 1/2,\\
 \sigma \sim pc_{\sigma}(\sigma_{0}, p_{\sigma}) \\; : \\; pc_{\sigma}(\sigma_0, p_{\sigma})\equiv \\{ P(\sigma > \sigma_0)=p_{\sigma}\\},\\
