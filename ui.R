@@ -26,18 +26,13 @@ if (!require("utils", quietly = TRUE)) {
 }
 
 if (!require("INLA", quietly = TRUE)) {
-  # R.version <- readline(prompt = "Are you running this app with the last version of R [y/n]? ")
-  writeLines("The first time, you may need to restart the application when the packages are finish installing. You would notice if the process still on but the app window is closed.")
-  R.version <- menu(choices = c("Yes", "No"), title = paste0("Your R version is ", version$major, ".", version$minor, ". Are you running this app on the last version of R?"))
-  if (R.version == 1) {
-    install.packages("INLA", repos = c(getOption("repos"), INLA = "https://inla.r-inla-download.org/R/stable"), dep = TRUE)
-  } else {
-    install.packages("remotes")
-    remotes::install_version("INLA", version = "22.05.03", repos = c(getOption("repos"), INLA = "https://inla.r-inla-download.org/R/testing"), dep = TRUE)
-  }
+  
 }
 if (!require("inlabru", quietly = TRUE)) {
   install.packages("inlabru")
+}
+if (!require("fmesher", quietly = TRUE)) {
+  remotes::install_github("inlabru-org/fmesher", ref = "stable")
 }
 if (!require("ggplot2", quietly = TRUE)) {
   install.packages("ggplot2")
@@ -74,6 +69,7 @@ library(shinyjs)
 library(periscope)
 library(INLA)
 library(inlabru)
+library(fmesher)
 library(ggplot2)
 library(lattice)
 library(rintrojs)
@@ -112,6 +108,7 @@ sidebar <- dashboardSidebar(
     menuItem("Model Analysis",
       tabName = "modelanalysis", icon = icon("chart-line"), expandedName = "MAexpand",
       menuSubItem("Independent Model", tabName = "modind"),
+      menuSubItem("LGCP Model", tabName = "modlgcp"),
       menuSubItem("Preferential Model", tabName = "modpref"),
       menuSubItem("Mixture Model", tabName = "modmixture")
     )
@@ -160,7 +157,7 @@ body <- dashboardBody(
                     Although they will be explained in more detail in their corresponding sections, where you will find a", span("Summary", style = "font-style: italic"), "to show such information."),
           p("The structure of the geoestatistical model for the response variable \\(y\\) is the following, in which the likelihood function \\(f(\\cdot)\\) of observations \\(y\\) is related to the predictor by means of the link function \\(g(\\cdot)\\):"),
           helpText("\\begin{equation}
-                            \\begin{array}{c}
+                           \\begin{array}{c}
                            y_i \\sim f(y_i|\\boldsymbol\\theta),\\\\
                            g(E(y_i)) = g(\\mu_i) = \\beta_0 + \\mathbf{X}_i\\boldsymbol\\beta + u_i.
                            \\end{array}
@@ -496,7 +493,7 @@ body <- dashboardBody(
                 ),
                 selectInput("datadistributionSim",
                   label = "Data distribution",
-                  choices = c("Gamma" = "gamma", "Gaussian" = "gaussian", "Bernoulli" = "bernoulli")
+                  choices = c("Gamma" = "gamma", "Gaussian" = "gaussian") #, "Bernoulli" = "bernoulli")
                 )
               )
             ),
@@ -1303,6 +1300,444 @@ body <- dashboardBody(
         )
       )
     ),
+    
+    # UI_LGCP_Section ----
+    tabItem(
+      tabName = "modlgcp", withMathJax(),
+      fluidRow(
+        box(
+          width = 3,
+          actionButton("fitLgcp", label = "Fit Model", width = "100%", icon = icon("jedi-order")),
+          selectInput("LgcpDataSimulatedLoaded",
+                      label = "Select data to be analyzed",
+                      choices = list("Simulated" = "sim", "Loaded" = "load"), selected = "sim"
+          ),
+          selectInput("LgcpRasterSPDE",
+                      label = "Covariate for data prediction",
+                      choices = list("Raster" = "raster", "Solve as SPDE" = "solvecov"), selected = "solvecov"
+          ),
+          conditionalPanel(
+            condition = "input.LgcpRasterSPDE=='raster'",
+            selectInput("LgcpRasterPred",
+                        label = "Options for prediction",
+                        selected = "SPDEraster",
+                        choices = list("Prediction grid through raster (SPDE)" = "SPDEraster",
+                                       "Raster as prediction locations" = "rasterpred")
+            )
+          ),
+          conditionalPanel(
+            condition = "input.LgcpRasterPred=='SPDEraster' || input.LgcpRasterSPDE=='solvecov' || input.LgcpDataSimulatedLoaded=='sim'",
+            sliderInput("LgcpSPDErasterInput", "Predictive grid dimensionality:",
+                        min = 50, max = 200, value = 100
+            )
+          ),
+          sliderInput("dimLgcpmap",
+                      label = "Predictive map resolution (spatial effect):",
+                      min = 100, max = 300, value = 150
+          ),
+          box(
+            id = "LgcpMeshCustom", width = 12, title = "Custom Mesh", closable = FALSE,
+            status = "warning", collapsible = TRUE, collapsed = TRUE, solidHeader = TRUE,
+            materialSwitch(
+              inputId = "LgcpCustomMesh", label = "Allow custom mesh",
+              value = FALSE, status = "primary"
+            ),
+            conditionalPanel(
+              condition = "input.LgcpCustomMesh",
+              actionButton("buildLgcpMesh", label = "Build Mesh", class = "button"),
+              radioGroupButtons(
+                inputId = "boundaryLgcpMesh",
+                label = "Outer Boundary Mesh",
+                choices = c("Default", "Non-Convex" = "LgcpMeshnonconvex", "Custom" = "LgcpMeshcustomboundary"),
+                individual = TRUE,
+                checkIcon = list(
+                  yes = tags$i(class = "fa fa-circle", style = "color: steelblue"),
+                  no = tags$i(class = "fa fa-circle-o", style = "color: steelblue")
+                )
+              ),
+              conditionalPanel(
+                condition = "input.boundaryLgcpMesh=='LgcpMeshnonconvex'",
+                numericInput(inputId = "curvatureLgcpMesh", label = "Curvature Radious", value = 0),
+                numericInput(inputId = "resolutionLgcpMesh", label = "Resolution", value = 40, min = 40)
+              ),
+              conditionalPanel(
+                condition = "input.boundaryLgcpMesh=='LgcpMeshcustomboundary'",
+                fileInput(
+                  inputId = "shapefileLgcpMesh", label = "Outer Boundary",
+                  accept = c(".csv", ".rds"), multiple = TRUE
+                )
+              ),
+              radioGroupButtons(
+                inputId = "interiorLgcpMesh",
+                label = "Inner Boundary Mesh",
+                choices = c("Default", "Non-Convex" = "interiorLgcpMeshnonconvex", "Custom" = "interiorLgcpMeshcustomboundary"),
+                individual = TRUE,
+                checkIcon = list(
+                  yes = tags$i(class = "fa fa-circle", style = "color: steelblue"),
+                  no = tags$i(class = "fa fa-circle-o", style = "color: steelblue")
+                )
+              ),
+              conditionalPanel(
+                condition = "input.interiorLgcpMesh=='interiorLgcpMeshnonconvex'",
+                numericInput(inputId = "interiorcurvatureLgcpMesh", label = "Curvature Radious", value = 0),
+                numericInput(inputId = "interiorresolutionLgcpMesh", label = "Resolution", value = 40, min = 40)
+              ),
+              conditionalPanel(
+                condition = "input.interiorLgcpMesh=='interiorLgcpMeshcustomboundary'",
+                fileInput(
+                  inputId = "interiorshapefileLgcpMesh", label = "Inner Boundary",
+                  accept = c(".csv", ".rds"), multiple = TRUE
+                )
+              ),
+              radioGroupButtons(
+                inputId = "selectionLgcpMesh",
+                label = "Mesh density",
+                choices = c("Quantile location" = "qlocation", "Edge length" = "edgelength"),
+                individual = TRUE,
+                checkIcon = list(
+                  yes = tags$i(class = "fa fa-circle", style = "color: steelblue"),
+                  no = tags$i(class = "fa fa-circle-o", style = "color: steelblue")
+                )
+              ),
+              conditionalPanel(
+                condition = "input.selectionLgcpMesh=='qlocation'",
+                numericInput(
+                  inputId = "LgcpMeshQloc", label = "Quantile Location",
+                  width = "100%", value = 0.03, min = 0, max = 1, step = 0.01
+                )
+              ),
+              conditionalPanel(
+                condition = "input.selectionLgcpMesh=='edgelength'",
+                numericInput(inputId = "EdgeLengthLgcpMesh", label = "Edge Length", width = "100%", value = 1, min = 0)
+              )
+            )
+          ),
+          box(
+            id = "LgcpFamily", width = 12, title = "Family and its hyperparameters",
+            status = "info", solidHeader = TRUE, collapsible = TRUE,
+            selectInput("SelectLgcpFamily",
+                        label = "Family distribution",
+                        choices = list("Poisson" = "poisson"),
+                        selected = "poisson"
+            ),
+            conditionalPanel(
+              condition = "input.SelectLgcpFamily=='beta' || input.SelectLgcpFamily=='gaussian' || input.SelectLgcpFamily=='gamma'",
+              radioGroupButtons(
+                inputId = "autocustomLgcpFamily",
+                label = "Hyperparameters",
+                choices = list("Default" = "default", "Custom" = "custom"),
+                status = "primary"
+              ),
+              conditionalPanel(
+                condition = "input.autocustomLgcpFamily=='custom'",
+                selectInput(inputId="LgcpFamilyPriorKind",
+                            label="Prior distribution",
+                            choices = list("Log-Gamma"="loggamma", "PC-prior"="pc", "Uniform"="unif", "Flat Uniform"="unifflat"),
+                            selected="loggamma"
+                ),
+                textInput("LgcpFamilyHyper",
+                          label = "Prior parameters",
+                          value = "0.01, 0.01", placeholder = "0.01, 0.01"
+                )
+              )
+            )
+          ),
+          box(
+            id = "LgcpDefaultComponents", width = 12, title = "Intercept and Explanatory Variables",
+            status = "info", solidHeader = TRUE, collapsible = TRUE,
+            checkboxGroupInput(
+              inputId = "DefaultComponentsLgcp",
+              label = "Default Components",
+              choices = c("Intercept", "Spatial Effect"),
+              selected = c("Intercept", "Spatial Effect")
+            ),
+            uiOutput("checkBoxLgcpDataFrame"),
+            uiOutput("SelectLgcpEffectCov"),
+            conditionalPanel(
+              condition = "input.LgcpDataSimulatedLoaded=='sim'",
+              uiOutput("SelectSimLgcpEffectCov1")
+            ),
+            conditionalPanel(
+              condition = "input.LgcpDataSimulatedLoaded=='load'",
+              uiOutput("SelectLoadLgcpEffectCovFactorPred")
+            )
+          ),
+          conditionalPanel(
+            condition = "input.DefaultComponentsLgcp.includes('Spatial Effect')",
+            box(
+              id = "LgcpPriorSpatial", width = 12, title = "Spatial Effect",
+              status = "info", solidHeader = TRUE, collapsible = TRUE,
+              box(
+                title = "Joit prior preview", width = 12, status = "info", solidHeader = TRUE, collapsible = TRUE, collapsed = TRUE,
+                popify(textInput(inputId = "Lgcprangebasepriorprev", label = "Base Prior Range", value = "0.01,5,200,0.5,0,1", width = NULL, placeholder = "0.01,5,200,0.5,0,1"),
+                       title = "Base Prior Range",
+                       content = "The <b>meaning of the values</b> according to the order of presentation are: the lower value of the axis, the upper value, the number of breaks, the value for rho0, the mean of the normal and the standard deviation of the normal.",
+                       placement = "right"
+                ),
+                popify(textInput(inputId = "Lgcpsigmabasepriorprev", label = "Base Prior Sigma", value = "0.01,5,200,1,0,1", width = NULL, placeholder = "0.01,5,200,1,0,1"),
+                       title = "Base Prior Stdev. Deviation",
+                       content = "The <b>meaning of the values</b> according to the order of presentation are: the lower value of the axis, the upper value, the number of breaks, the value for rho0, the mean of the normal and the standard deviation of the normal.",
+                       placement = "right"
+                ),
+                popify(textInput(inputId = "Lgcprangepcpriorprev", label = "PC-Prior Range", value = "0.01,5,200,0.5,0.5", width = NULL, placeholder = "0.01,5,200,0.5,0.5"),
+                       title = "PC-Prior Range",
+                       content = "The <b>meaning of the values</b> according to the order of presentation are: the lower value of the axis, the upper value, the number of breaks, the value for rho0, the mean of the normal and the standard deviation of the normal.",
+                       placement = "right"
+                ),
+                popify(textInput(inputId = "Lgcpsigmapcpriorprev", label = "PC-Prior Sigma", value = "0.01,5,200,1,0.5", width = NULL, placeholder = "0.01,5,200,1,0.5"),
+                       title = "PC-Prior Stdev. Deviation",
+                       content = "The <b>meaning of the values</b> according to the order of presentation are: the lower value of the axis, the upper value, the number of breaks, the value for rho0, the mean of the normal and the standard deviation of the normal.",
+                       placement = "right"
+                ),
+                actionButton(inputId="Lgcppreviewpriordistributions", label = "Preview Joint Prior Distributions", class = "button")
+              ),
+              radioGroupButtons(inputId = "KindPriorSpatialEffectLgcp", label = "Kind of Prior distribution",
+                                choices = c("PC-priors" = "PC.prior", "Base Priors" = "Base"), status = "success", justified = TRUE),
+              selectInput("optionLgcpS",
+                          label = "Prior options",
+                          choices = list("Auto" = "auto", "Custom" = "custom"),
+                          selected = "auto"
+              ),
+              conditionalPanel(
+                condition = "input.optionLgcpS=='custom'&input.KindPriorSpatialEffectLgcp=='PC.prior'",
+                textInput("LgcpPriorRangePC",
+                          label = HTML(paste0(p(HTML(paste0("Range Matérn ", "(\U03C1", tags$sub("0"), ", p", tags$sub("1"), "):"))), p("\\( \\mathbf{P}(\\boldsymbol\\rho<\\boldsymbol\\rho_o)=\\mathbf{p_1} \\)"))),
+                          value = "0.5,0.5", placeholder = "diff(limlattice)/2,0.5"
+                ),
+                textInput("LgcpPriorStdevPC",
+                          label = HTML(paste0(p(HTML(paste0("Stdev. Matérn ", "(\U03C3", tags$sub("0"), ", p", tags$sub("2"), "):"))), p("\\( \\mathbf{P}(\\boldsymbol\\sigma>\\boldsymbol\\sigma_o)=\\mathbf{p_2} \\)"))),
+                          value = "0.5,0.5", placeholder = "diff(limlattice)/2,0.5"
+                )
+              ),
+              conditionalPanel(
+                condition = "input.optionLgcpS=='custom'&input.KindPriorSpatialEffectLgcp=='Base'",
+                textInput("LgcpPriorRangeBase",
+                          label = HTML(paste0(p(HTML(paste0("Range Matérn ", "(\U03C1", tags$sub("0"), ", \U03BC", tags$sub("1"), ", \U03C3", tags$sub("1"), "):"))), p("\\(  \\)"))),
+                          value = "0.5,0.5,1.0", placeholder = "diff(limlattice)/2,0.5"
+                ),
+                textInput("LgcpPriorStdevBase",
+                          label = HTML(paste0(p(HTML(paste0("Stdev. Matérn ", "(\U03C3", tags$sub("0"), ", \U03BC", tags$sub("2"), ", \U03C3", tags$sub("2"), "):"))), p("\\(  \\)"))),
+                          value = "0.5,0.5,1.0", placeholder = "diff(limlattice)/2,0.5"
+                )
+              )
+            )
+          ),
+          box(
+            id = "advancedINLALgcp", width = 12,
+            title = "Advanced INLA config.",
+            collapsible = TRUE, collapsed = TRUE,
+            status = "info", solidHeader = TRUE,
+            selectInput("INLAModeLgcp",
+                        label = "INLA Mode",
+                        choices = list("Default" = "compact",
+                                       "Classic" = "classic",
+                                       "Experimental" = "experimental")
+            ),
+            conditionalPanel(
+              condition="input.INLAModeLgcp=='classic'",
+              selectInput("strategyapproxINLALgcp",
+                          label = "Aproximation strategy",
+                          choices = list(
+                            "Auto" = "auto", "Gaussian" = "gaussian",
+                            "Simplified Laplace" = "simplified.laplace",
+                            "Laplace" = "laplace", "Adaptive" = "adaptive"
+                          ),
+                          selected = "auto"
+              ),
+              selectInput("strategyintINLALgcp",
+                          label = "Integration strategy",
+                          choices = list(
+                            "Auto" = "auto", "Central compositive design" = "ccd",
+                            "Grid strategy" = "grid",
+                            "Empirical Bayes" = "eb"
+                          ),
+                          selected = "auto"
+              )
+            ),
+            textInput("LgcppriorBetacopy",
+                      label = "Prior Beta-copy values",
+                      value = "0,0.001", placeholder = "0,0.001"
+            ),
+            radioGroupButtons(
+              inputId = "autocustomLgcpMode",
+              label = "Hyperparameters modes",
+              choices = list("Default" = "default", "Custom" = "custom"),
+              status = "primary"
+            ),
+            conditionalPanel(
+              condition = "input.autocustomLgcpMode=='custom'",
+              textInput("LgcpModeHyper",
+                        label = "Values",
+                        value = "0,0", placeholder = "0,0"
+              )
+            )
+          )
+        ),
+        conditionalPanel(
+          condition = "input.LgcpCustomMesh",
+          box(
+            title = "Mesh (Lgcp Model)", width = 9, solidHeader = TRUE, status = "info",
+            downloadFileButton(
+              id = "ggplotLgcpMesh",
+              downloadtypes = c("png"),
+              hovertext = "Download image and data"
+            ),
+            downloadablePlotUI(
+              id = "ggplotLgcpMesh",
+              list("png"),
+              btn_valign = "bottom",
+              btn_halign = "right",
+              btn_overlap = TRUE
+            )
+          )
+        ),
+        conditionalPanel(
+          condition = "input.Lgcppreviewpriordistributions>=1",
+          box(
+            title = "Preview Joint Prior Distributions (Spatial effects)", width = 9, solidHeader = TRUE, collapsible = TRUE, status = "info",
+            downloadFileButton(
+              id = "LgcpPreviewJointPriorPlot",
+              downloadtypes = c("png"),
+              hovertext = "Download image"
+            ),
+            downloadablePlotUI(
+              id = "LgcpPreviewJointPriorPlot",
+              list("png"),
+              btn_valign = "bottom",
+              btn_halign = "right",
+              btn_overlap = TRUE
+            )
+          )
+        ), 
+        ## UI_LGCP_Outputs_SubSection ====
+        conditionalPanel(
+          condition = "input.fitLgcp>=1",
+          box(
+            title = "LGCP model results", width = 9, collapsible = TRUE, solidHeader = TRUE, status = "primary",
+            box(
+              title = "Intensity predictive maps", solidHeader = TRUE,
+              collapsible = TRUE, width = 12, status = "info",
+              column(
+                width = 12,
+                downloadFileButton(
+                  id = "ggplotLgcpAbundanceMeanMedianStdevFit",
+                  downloadtypes = c("png", "csv", "txt"),
+                  hovertext = "Download image and data"
+                ),
+                downloadablePlotUI(
+                  id = "ggplotLgcpAbundanceMeanMedianStdevFit",
+                  downloadtypes = c("png", "csv", "txt"),
+                  btn_valign = "bottom",
+                  btn_halign = "right",
+                  btn_overlap = TRUE
+                )
+              )
+            ),
+            box(
+              title = "Log-Intesity predictive maps", solidHeader = TRUE,
+              collapsible = TRUE, width = 12, status = "info",
+              column(
+                width = 12,
+                downloadFileButton(
+                  id = "ggplotLgcpPredictorMeanMedianStdevFit",
+                  downloadtypes = c("png", "csv", "txt"),
+                  hovertext = "Download image and data"
+                ),
+                downloadablePlotUI(
+                  id = "ggplotLgcpPredictorMeanMedianStdevFit",
+                  downloadtypes = c("png", "csv", "txt"),
+                  btn_valign = "bottom",
+                  btn_halign = "right",
+                  btn_overlap = TRUE
+                )
+              )
+            ),
+            box(
+              title = "Posterior maps of the spatial effect", solidHeader = TRUE,
+              collapsible = TRUE, width = 12, status = "info",
+              column(
+                width = 12,
+                downloadFileButton(
+                  id = "ggplotLgcpSpatialMeanMedianStdev",
+                  downloadtypes = c("png", "csv", "txt"),
+                  hovertext = "Download image and data"
+                ),
+                downloadablePlotUI(
+                  id = "ggplotLgcpSpatialMeanMedianStdev",
+                  downloadtypes = c("png", "csv", "txt"),
+                  btn_valign = "bottom",
+                  btn_halign = "right",
+                  btn_overlap = TRUE
+                )
+              )
+            ),
+            box(
+              title = "Density functions of the fixed effects", solidHeader = TRUE,
+              collapsible = TRUE, width = 12, status = "info",
+              column(
+                width = 12,
+                downloadFileButton(
+                  id = "ggplotLgcpFixParamFit",
+                  downloadtypes = c("png", "csv", "txt"),
+                  hovertext = "Download image and data"
+                ),
+                downloadablePlotUI(
+                  id = "ggplotLgcpFixParamFit",
+                  downloadtypes = c("png", "csv", "txt"),
+                  btn_valign = "bottom",
+                  btn_halign = "right",
+                  btn_overlap = TRUE
+                )
+              )
+            ),
+            box(
+              title = "Density functions of the hyperparameters", solidHeader = TRUE,
+              collapsible = TRUE, width = 12, status = "info",
+              column(
+                width = 12,
+                downloadFileButton(
+                  id = "ggplotLgcpHyperParamFit",
+                  downloadtypes = c("png", "csv", "txt"),
+                  hovertext = "Download image and data"
+                ),
+                downloadablePlotUI(
+                  id = "ggplotLgcpHyperParamFit",
+                  downloadtypes = c("png", "csv", "txt"),
+                  btn_valign = "bottom",
+                  btn_halign = "right",
+                  btn_overlap = TRUE
+                )
+              )
+            ),
+            box(
+              title = "Tables of fixed effects, hyperparameters and internal hyperparameters", solidHeader = TRUE,
+              collapsible = TRUE, width = 12, status = "info",
+              column(
+                width = 6,
+                downloadableTableUI("tableLgcpModelFixedPar", downloadtypes = c("csv", "tsv"))
+              ),
+              column(
+                width = 6,
+                downloadableTableUI("tableLgcpModelHyperPar", downloadtypes = c("csv", "tsv"))
+              ),
+              column(
+                width = 12,
+                downloadableTableUI("tableLgcpModelInternalHyperPar", downloadtypes = c("csv", "tsv"))
+              ),
+              column(
+                width = 8,
+                downloadableTableUI("dataLgcpCPOtable", downloadtypes = c("csv", "tsv"))
+              ),
+              column(
+                width = 4,
+                downloadableTableUI("dataLgcpDICtable", downloadtypes = c("csv", "tsv"))
+              )
+            )
+          )
+        )
+      )
+    ),
+    
     
     # UI_Preferential_Section ----
     tabItem(

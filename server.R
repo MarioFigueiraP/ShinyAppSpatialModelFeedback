@@ -48,7 +48,7 @@ shinyServer(function(input, output, session) {
     }
     
     ProjectionFunctionRegularGrid <- function(lim1=c(0,1), lim2=c(0,1), loc, z, proj.grid){
-        lattice <- inla.mesh.lattice(seq(lim1[1],lim1[2],length.out=2),seq(lim2[1],lim2[2],length.out=2))
+        lattice <- fm_lattice_2d(seq(lim1[1],lim1[2],length.out=2),seq(lim2[1],lim2[2],length.out=2))
         mesh <- inla.mesh.create(loc=loc, boundary=lattice$segm, refine=list(max.edge=0.08))
         df <- data.frame(x=loc[,1], y=loc[,2], z=z)
         indx <- prodlim::row.match(as.data.frame(cbind(df$x,df$y)), mesh$loc[,1:2]) # library(prodlim)
@@ -148,7 +148,7 @@ shinyServer(function(input, output, session) {
     meshSim <- eventReactive(input$makeSim,{
         xlattice0 <- seq(input$limlattice[1], input$limlattice[2], length.out=input$lengthlattice) 
         ylattice0 <- seq(input$limlattice[1], input$limlattice[2], length.out=input$lengthlattice)
-        lattice0 <-  inla.mesh.lattice(xlattice0, ylattice0)
+        lattice0 <-  fm_lattice_2d(xlattice0, ylattice0)
         mesh <-  inla.mesh.create(lattice=lattice0, refine=list(max.edge=0.08*abs(diff(input$limlattice))))
         result <- list(mesh=mesh, lattice0=lattice0)
         return(result)
@@ -569,6 +569,22 @@ shinyServer(function(input, output, session) {
                             txt  = dataggplotPrefSampleSim,
                             csv  = dataggplotPrefSampleSim),
         visibleplot  = ggplotPrefSampleSim)
+    
+    Lgcp.sampling <- eventReactive(input$makeSample, {
+      if(!is.na(input$seedSampleP)){set.seed(input$seedSampleP, kind="Mersenne-Twister", normal.kind="Inversion")}
+      indx <- sample(1:length(SimMap()$DataSim$DataSim$gridx), size=input$nps.samples,
+                     prob=exp(input$r.scale*SimMap()$DataSim$DataSim$abundance.field/max(SimMap()$DataSim$DataSim$abundance.field)))
+      PreferentialSample <- list(Latitude=SimMap()$DataSim$DataSim$gridx[indx],
+                                 Longitude=SimMap()$DataSim$DataSim$gridy[indx],
+                                 Precense=rep(1, times=length(SimMap()$DataSim$DataSim$abundance.field[indx])),
+                                 Bathymetry=SimMap()$DataSim$DataSim$bathymetry.field[indx])
+      return(PreferentialSample)
+    })
+    
+    dataggplotLgcpSampleSim <- function(){
+      data.frame(Latitude=Lgcp.sampling()$Latitude, Longitude=Lgcp.sampling()$Longitude,
+                 Bathymetry=Lgcp.sampling()$Bathymetry, Abundance=Lgcp.sampling()$Abundance)
+    }
 
     Mixture.sampling <- eventReactive(input$makeSampleMixture,{
       if(!is.na(input$seedSample.mixture1)){set.seed(input$seedSample.mixture1, kind="Mersenne-Twister", normal.kind="Inversion")}
@@ -1079,8 +1095,10 @@ shinyServer(function(input, output, session) {
     IndMeshBase <- reactive({
       if(input$IndDataSimulatedLoaded=="sim"){
         DFsample <- as.data.frame(Ind.sampling())
+        convexhull <- chull(DFsample[,1:2])
+        convexhull <- c(convexhull, convexhull[1])
         qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
-        mesh <- inla.mesh.2d(loc=cbind(DFsample[,1],DFsample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
+        mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
                              max.edge=c(qloc[1], qloc[2]))
         sample <- DFsample
       } else if(input$IndDataSimulatedLoaded=="load"){
@@ -1088,12 +1106,16 @@ shinyServer(function(input, output, session) {
         if(input$IndRasterSPDE=="raster"){
           rasterSample <- datareadRaster()[sample(1:nrow(datareadRaster()), min(c(50,nrow(datareadRaster())))),1:2]
           qloc <- quantile(as.vector(dist(rasterSample)),probs=c(0.03,0.3))
-          mesh <- inla.mesh.2d(loc=cbind(rasterSample[,1],rasterSample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
+          convexhull <- chull(datareadRaster()[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=datareadRaster()[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
                                max.edge=c(qloc[1], qloc[2]))
           sample <- rasterSample
         } else if(input$IndRasterSPDE=="solvecov"){
+          convexhull <- chull(rbind(DFsample[,1:2],datareadRaster()[,1:2]))
+          convexhull <- c(convexhull, convexhull[1])
           qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
-          mesh <- inla.mesh.2d(loc=cbind(DFsample[,1],DFsample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
+          mesh <- fm_mesh_2d_inla(loc.domain=rbind(DFsample[,1:2],datareadRaster()[,1:2])[convexhull,], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
                                max.edge=c(qloc[1], qloc[2]))
           sample <- DFsample
         }
@@ -1107,6 +1129,10 @@ shinyServer(function(input, output, session) {
         DFsample <- as.data.frame(Ind.sampling())
       } else if(input$IndDataSimulatedLoaded=="load"){
         DFsample <- as.data.frame(datareadSample())
+        DFraster <- try(datareadRaster(), silent=TRUE)
+        if(class(DFraster)!="try-error"){
+          DFsample <- rbind(DFsample[,1:2], DFraster[,1:2])
+        }
       }
       
       interiorNonConvex <- function(x, condition, convex, resolution, file.read){
@@ -1141,13 +1167,17 @@ shinyServer(function(input, output, session) {
         if(input$IndRasterSPDE=="raster"){
           rasterSample <- datareadRaster()[sample(1:nrow(datareadRaster()), min(c(50,nrow(datareadRaster())))),1:2]
           qloc <- quantile(as.vector(dist(rasterSample)),probs=c(ifelse(input$IndCustomMesh,input$IndMeshQloc,0.03),0.3))
-          mesh <- inla.mesh.2d(loc=cbind(rasterSample[,1],rasterSample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
+          convexhull <- chull(DFsample[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
                                boundary=list(interiorNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$interiorIndMesh, convex=input$interiorcurvatureIndMesh, resolution=input$interiorresolutionIndMesh, file.read=input$interiorshapefileIndMesh),
                                              boundaryNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$boundaryIndMesh, convex=input$curvatureIndMesh, resolution=input$resolutionIndMesh, file.read=input$shapefileIndMesh)))
           sample <- rasterSample
         } else if(input$IndRasterSPDE=="solvecov"){
           qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(ifelse(input$IndCustomMesh,input$IndMeshQloc,0.03),0.3))
-          mesh <- inla.mesh.2d(loc=cbind(DFsample[,1],DFsample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
+          convexhull <- chull(DFsample[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
                                boundary=list(interiorNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$interiorIndMesh, convex=input$interiorcurvatureIndMesh, resolution=input$interiorresolutionIndMesh, file.read=input$interiorshapefileIndMesh),
                                              boundaryNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$boundaryIndMesh, convex=input$curvatureIndMesh, resolution=input$resolutionIndMesh, file.read=input$shapefileIndMesh)))
           sample <- DFsample
@@ -1156,13 +1186,17 @@ shinyServer(function(input, output, session) {
         if(input$IndRasterSPDE=="raster"){
           rasterSample <- datareadRaster()
           qloc <- input$EdgeLengthIndMesh
-          mesh <- inla.mesh.2d(loc=cbind(rasterSample[,1],rasterSample[,2]),max.edge=c(1,1.5)*input$EdgeLengthIndMesh, cutoff=input$EdgeLengthIndMesh/5, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
+          convexhull <- chull(DFsample[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], max.edge=c(1,1.5)*input$EdgeLengthIndMesh, cutoff=input$EdgeLengthIndMesh/5, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
                                boundary=list(interiorNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$interiorIndMesh, convex=input$interiorcurvatureIndMesh, resolution=input$interiorresolutionIndMesh, file.read=input$interiorshapefileIndMesh),
                                              boundaryNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$boundaryIndMesh, convex=input$curvatureIndMesh, resolution=input$resolutionIndMesh, file.read=input$shapefileIndMesh)))
           sample <- rasterSample
         } else if(input$IndRasterSPDE=="solvecov"){
           qloc <- input$EdgeLengthIndMesh
-          mesh <- inla.mesh.2d(loc=cbind(DFsample[,1],DFsample[,2]),max.edge=c(1,1.5)*input$EdgeLengthIndMesh,  cutoff=input$EdgeLengthIndMesh/5, offset=c(-0.1, -0.2),
+          convexhull <- chull(DFsample[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], max.edge=c(1,1.5)*input$EdgeLengthIndMesh,  cutoff=input$EdgeLengthIndMesh/5, offset=c(-0.1, -0.2),
                                boundary=list(interiorNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$interiorIndMesh, convex=input$interiorcurvatureIndMesh, resolution=input$interiorresolutionIndMesh, file.read=input$interiorshapefileIndMesh),
                                              boundaryNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$boundaryIndMesh, convex=input$curvatureIndMesh, resolution=input$resolutionIndMesh, file.read=input$shapefileIndMesh)))
           sample <- DFsample
@@ -1274,8 +1308,6 @@ shinyServer(function(input, output, session) {
       A.inf <- lmat
       
       ### Prediction of covariates ====
-      
-      prediction.test <- "yes"
       
       List.covariates.inf <- list()
       List.covariates.pred <- list()
@@ -1412,10 +1444,6 @@ shinyServer(function(input, output, session) {
         }
       }
       
-      test_List.covariates.inf <- List.covariates.inf
-      test_List.covariates.pred <- List.covariates.pred
-      building.model.test <- "yes"
-      
       ### Building the main model and stacks structure ====
       
       Inf.geo.effects.list <- list(
@@ -1472,7 +1500,6 @@ shinyServer(function(input, output, session) {
               } else{
                 formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model='",eval(parse(text=paste0("input$IndEffectCov",j))),  "', constr=",eval(parse(text=paste0("input$IndEffectCovConstr",j))),", scale.model=TRUE)"), sep=" + ")
               }
-              test.group <- "yes"
               group.cov <- inla.group(x=c(List.covariates.inf[[variablesChosenUser[j]]], List.covariates.pred[[variablesChosenUser[j]]]), n=eval(parse(text=paste0("input$IndEffectCovNodes",j))), method="cut")
               
               Inf.geo.effects.list[[2]][[variablesChosenUser[j]]] <- group.cov[seq_len(n)]
@@ -1481,7 +1508,7 @@ shinyServer(function(input, output, session) {
             } else if(eval(parse(text=paste0("input$IndEffectCov",j)))=="spde1"){
               Tot_cov <- c(List.covariates.inf[[variablesChosenUser[j]]], List.covariates.pred[[variablesChosenUser[j]]])
               spde1_nodes <- seq(min(Tot_cov), max(Tot_cov), length.out=eval(parse(text=paste0("input$IndEffectCovNodes",j))))
-              mesh1d <- inla.mesh.1d(loc=spde1_nodes)
+              mesh1d <- fm_mesh_1d(loc=spde1_nodes)
               
               if(eval(parse(text=paste0("input$IndEffectCustomPrior",j)))=="custom"){
                 if(eval(parse(text=paste0("input$IndEffectCovKindPrior",j)))=="pc"){
@@ -1503,8 +1530,7 @@ shinyServer(function(input, output, session) {
               
               spde1d.index <- inla.spde.make.index(name=paste0(variablesChosenUser[j]), n.spde=eval(parse(text=paste0("spde1d_",variablesChosenUser[j])))$n.spde)
               formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model=", paste0("spde1d_",variablesChosenUser[j]),  ")"), sep=" + ")
-              test.inf.effects1 <- "yes"
-              
+
               Inf.geo.effects.list[[length(A_Inf.spde1)+3]] <- list()
               Pred.geo.effects.list[[length(A_Inf.spde1)+3]] <- list()
               Inf.geo.effects.list[[length(A_Inf.spde1)+3]][[variablesChosenUser[j]]] <- spde1d.index[[1]]
@@ -1533,8 +1559,6 @@ shinyServer(function(input, output, session) {
               idx.factor <- which(variablesChosenUser[j]==names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])[names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])%in%c(variablesChosenUser)])
               
               Inf.geo.effects.list[[2]][[variablesChosenUser[j]]] <- c(List.covariates.inf[[variablesChosenUser[j]]])
-              
-              test.iidfactor <- "yes"
               
               Pred.geo.effects.list[[2]][[variablesChosenUser[j]]] <- if(eval(parse(text=paste0("input$IndKindPredictionFactorLevel",idx.factor)))=="reference"){
                 rep( eval(parse(text=paste0("input$IndEffectCovFactorPred",idx.factor))), times=length(List.covariates.pred[[variablesChosenUser[j]]]))
@@ -1584,14 +1608,6 @@ shinyServer(function(input, output, session) {
         }
       }
       
-      testInf.geo.effects.list <- Inf.geo.effects.list
-      testPred.geo.effects.list <- Pred.geo.effects.list
-      
-      A.geo.pred <- A.geo.pred
-      
-      A_Inf.spde1 <- A_Inf.spde1
-      A_Pred.spde1 <- A_Pred.spde1
-      
       ### Stacks of the geostatistical and prediction layers ====
       
       ResponseVariable <- DFsample[,3]
@@ -1625,7 +1641,6 @@ shinyServer(function(input, output, session) {
       
       ### INLA model ====
       
-      testFormula <- formula_mod
       formula_inla <- as.formula(formula_mod)
       
       if(input$autocustomIndFamily=='custom'){
@@ -1672,7 +1687,6 @@ shinyServer(function(input, output, session) {
                           inla.mode=input$INLAModeInd,
                           verbose=FALSE)
       
-      testxypred <- xy.pred
       index.pred <- inla.stack.index(Total.stack, "Prediction_geo")$data
       DFpred <- data.frame(Latitude=xy.pred[,1], Longitude=xy.pred[,2])
       DFpred$Abundance.mean <- Ind.model$summary.fitted.values[index.pred, "mean"]
@@ -1688,7 +1702,6 @@ shinyServer(function(input, output, session) {
       
       colnames(DFpredictorMeanMedianStdev)[1:2] <- colnames(DFsample)[1:2]
       
-      testResultsPred <- "yes"
       gridSpatial <- expand.grid(x=seq(min(DFpred[,1]), max(DFpred[,1]),length.out=input$dimIndmap),
                                  y=seq(min(DFpred[,2]), max(DFpred[,2]), length.out=input$dimIndmap))
       gridSpatial <- gridSpatial[which(!is.na(over(SpatialPoints(coords=gridSpatial),SpatialPolygons(Srl=list(Polygons(srl=list(Polygon(coords=mesh$loc[mesh$segm$int$idx[,1], 1:2])), ID="int")))))),1:2]
@@ -1714,11 +1727,10 @@ shinyServer(function(input, output, session) {
                       SummaryCPO=list(SummaryCPO=na.omit(Ind.model$cpo$cpo)),
                       DICmodel=list(DICmodel=data.frame(DIC=Ind.model$dic$family.dic, row.names="Geostatistical")))
       
-      testModelFit <- "yes"
       t2 <- Sys.time()
       difftime(t2,t1, units="secs")
       showNotification(ui=paste("The model has been fitted:", as.numeric(round(Ind.model$cpu.used[4])),
-                                "(abundance model) and", as.numeric(round(difftime(t2,t1, units="secs"))),
+                                "(Geostatistical model) and", as.numeric(round(difftime(t2,t1, units="secs"))),
                                 "(overall process) secs." ), duration = NULL)
       # showNotification(ui=paste("The model's DIC is", Inderential.model$dic$dic), duration = NULL)
       return(result)
@@ -2069,6 +2081,1293 @@ shinyServer(function(input, output, session) {
                       tabledata=dataIndCPOtable, rownames = FALSE,
                       caption="Summary CPO")
     
+    # Server_LGCPModelling_Section ----
+    
+    LgcpCheckBoxNames <- function(){
+      if(input$LgcpDataSimulatedLoaded=="load"){
+        DF <- as.data.frame(datareadSample())
+        if(input$SelectLgcpFamily=="binomial"){DFnames <- names(DF)[c(5:ncol(DF))]}
+        else{DFnames <- names(DF)[c(4:ncol(DF))]}
+      } else if(input$LgcpDataSimulatedLoaded=="sim"){
+        DF <- Lgcp.sampling()
+        DFnames <- names(DF)[c(4)]
+      }
+      return(DFnames)
+    }
+    
+    observe({
+      output$checkBoxLgcpDataFrame <- renderUI({
+        tagList(
+          checkboxGroupInput(inputId="UserComponentsLgcp",
+                             label="User Defined Components",
+                             choices=LgcpCheckBoxNames(),
+                             selected=c()
+          )
+        )
+      })
+    })
+    
+    observe({
+      if(input$LgcpDataSimulatedLoaded=="sim"){DF <- Lgcp.sampling()}
+      else{DF <- as.data.frame(datareadSample())}
+      output$checkBoxLgcpSharing <- renderUI({
+        box(id="LgcpCovariateSharingTerms", width=12, title="Sharing Components",
+            checkboxGroupInput(inputId=paste0("UserComponentsLgcpSharing"),
+                               label=paste("User Defined Sharing Components:"),
+                               choices=c(input$DefaultComponentsLgcp,input$UserComponentsLgcp),
+                               selected=c(input$DefaultComponentsLgcp,input$UserComponentsLgcp)
+            )
+        )
+      })
+    })
+    
+    observe({
+      if(input$LgcpDataSimulatedLoaded=="load"){
+        output$SelectLgcpEffectCov <- renderUI({
+          
+          if(length(input$UserComponentsLgcp)>0){
+            box(id="LgcpCovariateEffects", width=12, title="Covariate Effects",
+                lapply(seq_along(input$UserComponentsLgcp), function(i){
+                  list(
+                    selectInput(inputId=paste0("LgcpEffectCov",i), label=tags$span(style="color: blue; font-weight: bold;", paste(input$UserComponentsLgcp[i],"Effect")) ,
+                                choices = list("Linear (or reference level)" = "linear", "Random Walk 1" = "rw1", "Random Walk 2" = "rw2", "SPDE 1" = "spde1", "IID"="iid"),
+                                selected = "linear"),
+                    conditionalPanel(condition=paste0("input.LgcpEffectCov",i,"=='rw1'||","input.LgcpEffectCov",i,"=='rw2'||","input.LgcpEffectCov",i,"=='spde1'"),
+                                     numericInput(inputId=paste0("LgcpEffectCovNodes",i),
+                                                  label="Number of nodes",
+                                                  value=10, min=1, step=1
+                                     )
+                    ),
+                    radioGroupButtons(
+                      inputId = paste0("LgcpEffectCustomPrior",i),
+                      label = "Custom Prior",
+                      choices = list("Auto" = "auto", "Custom" = "custom"),
+                      status = "primary"
+                    ),
+                    conditionalPanel(condition=paste0("input.LgcpEffectCustomPrior",i,"=='custom'"),
+                                     list(
+                                       selectInput(inputId = paste0("LgcpEffectCovKindPrior",i),
+                                                   label = "Prior distribution",
+                                                   choices = list("Base" = "base", "PC prior" = "pc", "Uniform" = "unif", "Flat Uniform" = "flatunif")),
+                                       conditionalPanel(condition=paste0("input.LgcpEffectCovKindPrior",i,"=='base'"),
+                                                        textInput(inputId = paste0("LgcpEffectCovPriorBaseValues",i),
+                                                                  label = "Base Prior Values",
+                                                                  value = "0, 1e-3")),
+                                       conditionalPanel(condition=paste0("input.LgcpEffectCovKindPrior",i,"=='pc'"),
+                                                        textInput(inputId = paste0("LgcpEffectCovPriorPCValues",i),
+                                                                  label = "PC-Prior Values",
+                                                                  value = "0, 1e-3")),
+                                       conditionalPanel(condition=paste0("input.LgcpEffectCovKindPrior",i,"=='unif'"),
+                                                        textInput(inputId = paste0("LgcpEffectCovPriorUnif",i),
+                                                                  label = "Uniform Lower and upper values",
+                                                                  value = "0, 10",
+                                                                  placeholder = "Lower and upper values: 'U(a,b)'"))
+                                     )
+                    ),
+                    conditionalPanel(condition=paste0("input.LgcpEffectCov",i,"=='rw1'||",
+                                                      "input.LgcpEffectCov",i,"=='rw2'||",
+                                                      "input.LgcpEffectCov",i,"=='iid'"),
+                                     radioGroupButtons(
+                                       inputId = paste0("LgcpEffectCovConstr",i),
+                                       label = "Sum to zero",
+                                       choices = list("TRUE" = "TRUE", "FALSE" = "FALSE"),
+                                       status = "primary"
+                                     ))
+                  )
+                }))
+          } else{}
+        }) } else if(input$LgcpDataSimulatedLoaded=="sim"){
+          output$SelectLgcpEffectCov <- renderUI({
+            if(length(input$UserComponentsLgcp)>0){
+              box(id="LgcpCovariateEffects", width=12, title="Covariate Effects",
+                  lapply(seq_along(input$UserComponentsLgcp), function(i){
+                    list(
+                      selectInput(inputId=paste0("LgcpEffectCov",i), label=tags$span(style="color: blue; font-weight: bold;", paste(input$UserComponentsLgcp[i],"Effect")) ,
+                                  choices = list("Linear (or reference level)" = "linear", "Random Walk 1" = "rw1", "Random Walk 2" = "rw2", "SPDE 1" = "spde1", "IID"="iid"),
+                                  selected = "linear"),
+                      conditionalPanel(condition=paste0("input.LgcpEffectCov",i,"=='rw1'||","input.LgcpEffectCov",i,"=='rw2'||","input.LgcpEffectCov",i,"=='spde1'"),
+                                       numericInput(inputId=paste0("LgcpEffectCovNodes",i),
+                                                    label="Number of nodes",
+                                                    value=10, min=1, step=1
+                                       )
+                      ),
+                      radioGroupButtons(
+                        inputId = paste0("LgcpEffectCustomPrior",i),
+                        label = "Custom Prior",
+                        choices = list("Auto" = "auto", "Custom" = "custom"),
+                        status = "primary"
+                      ),
+                      conditionalPanel(condition=paste0("input.LgcpEffectCustomPrior",i,"=='custom'"),
+                                       list(
+                                         selectInput(inputId = paste0("LgcpEffectCovKindPrior",i),
+                                                     label = "Prior distribution",
+                                                     choices = list("Base" = "base", "PC prior" = "pc", "Uniform" = "unif", "Flat Uniform" = "unifflat")),
+                                         conditionalPanel(condition=paste0("input.LgcpEffectCovKindPrior",i,"=='base'"),
+                                                          textInput(inputId = paste0("LgcpEffectCovPriorBaseValues",i),
+                                                                    label = "Base Prior Values",
+                                                                    value = "0, 1e-3")),
+                                         conditionalPanel(condition=paste0("input.LgcpEffectCovKindPrior",i,"=='pc'"),
+                                                          textInput(inputId = paste0("LgcpEffectCovPriorPCValues",i),
+                                                                    label = "PC-Prior Values",
+                                                                    value = "0, 1e-3")),
+                                         conditionalPanel(condition=paste0("input.LgcpEffectCovKindPrior",i,"=='unif'"),
+                                                          textInput(inputId = paste0("LgcpEffectCovPriorUnif",i),
+                                                                    label = "Uniform Lower and upper values",
+                                                                    value = "0, 10",
+                                                                    placeholder = "Lower and upper values: 'U(a,b)'"))
+                                       )
+                      ),
+                      conditionalPanel(condition=paste0("input.LgcpEffectCov",i,"=='rw1'||",
+                                                        "input.LgcpEffectCov",i,"=='rw2'||",
+                                                        "input.LgcpEffectCov",i,"=='iid'"),
+                                       radioGroupButtons(
+                                         inputId = paste0("LgcpEffectCovConstr",i),
+                                         label = "Sum to zero",
+                                         choices = list("TRUE" = "TRUE", "FALSE" = "FALSE"),
+                                         status = "primary"
+                                       ))
+                    )
+                  }))
+            } else{}
+          }) }
+    })
+    
+    observe({
+      if(input$LgcpDataSimulatedLoaded=="load"){
+        DF <- as.data.frame(datareadSample())
+        if(length(input$UserComponentsLgcp)>0){
+          LgcpUserComponent <- input$UserComponentsLgcp
+          DF2 <- select(DF, LgcpUserComponent[!as.vector(unlist(lapply(X=select(DF,LgcpUserComponent), FUN=is.numeric)))])
+          output$SelectLoadLgcpEffectCovFactorPred <- renderUI({
+            if(ncol(DF2)>0){
+              box(id="LgcpPredFactorLevel", width=12, title="Prediction Factor Level",
+                  lapply(seq_along(names(DF2)), function(i){
+                    choices <- unique(DF2[[names(DF2)[i]]])
+                    list(
+                      radioGroupButtons(inputId = paste0("LgcpKindPredictionFactorLevel",i), label = tags$span(style="color: blue; font-weight: bold;", paste(names(DF2)[i], "(prediction protocol)")),
+                                        choices = c("Reference level" = "reference", "Nearest level" = "nearest"), status = "success", justified = TRUE),
+                      conditionalPanel(
+                        condition=paste0("input.LgcpKindPredictionFactorLevel",i,"=='reference'"),
+                        selectInput(inputId=paste0("LgcpEffectCovFactorPred",i), label=paste(names(DF2)[i],"Reference Factor"),
+                                    choices = choices, selected = choices[1])
+                      )
+                    )
+                  }))
+            }
+          })
+        } else{
+          output$SelectLoadLgcpEffectCovFactorPred <- renderUI({})
+        }
+      }
+    })
+    
+    JointPriorPreviewLgcp <- eventReactive(input$Lgcppreviewpriordistributions,{
+      d <- 2; nu <- 1
+      rhoinputPC <- as.numeric(unlist(strsplit(input$Lgcprangepcpriorprev, ",")))
+      sigmainputPC <- as.numeric(unlist(strsplit(input$Lgcpsigmapcpriorprev, ",")))
+      rhoPC <- seq(rhoinputPC[1], rhoinputPC[2], length.out=rhoinputPC[3])
+      sigmaPC <- seq(sigmainputPC[1], sigmainputPC[2], length.out=sigmainputPC[3])
+      rhosigmaPC <- expand.grid(rho=rhoPC, sigma=sigmaPC)
+      rho0PC <- rhoinputPC[4]; alpha1 <- rhoinputPC[5]
+      sigma0PC <- sigmainputPC[4]; alpha2 <- sigmainputPC[5]
+      
+      lambdarhoPC <- -log(alpha1)*rho0PC**(d/2) #-(rho0/sqrt(8*nu))**(d/2)*log(alpha1)
+      lambdasigmaPC <- -log(alpha2)/sigma0PC #-(sqrt(8*nu)/rhosigma$rho)**(-nu)*sqrt(gamma(nu)/(gamma(nu+d/2)*(4*pi)**(d/2)))*log(alpha2)/sigma0
+      pirhosigmaPCM <- d/2*lambdarhoPC*rhosigmaPC$rho**(-1-d/2)*exp(-lambdarhoPC*rhosigmaPC$rho**(-d/2))*lambdasigmaPC*exp(-lambdasigmaPC*rhosigmaPC$sigma)
+      
+      probIntPC <- diff(range(rhoPC))*diff(range(sigmaPC))/length(pirhosigmaPCM)*sum(pirhosigmaPCM)
+      
+      rhoinputBase <- as.numeric(unlist(strsplit(input$Lgcprangebasepriorprev, ",")))
+      sigmainputBase <- as.numeric(unlist(strsplit(input$Lgcpsigmabasepriorprev, ",")))
+      rho <- seq(rhoinputBase[1], rhoinputBase[2], length.out=rhoinputBase[3])
+      sigma <- seq(sigmainputBase[1], sigmainputBase[2], length.out=sigmainputBase[3])
+      rhosigma <- expand.grid(rho=rho, sigma=sigma)
+      rho0 <- rhoinputBase[4]; sigma0 <- sigmainputBase[4]
+      meanrho <- rhoinputBase[5]; meansigma <- sigmainputBase[5]
+      sdrho <- rhoinputBase[6]; sdsigma <- sigmainputBase[6]
+      pirho <- (sqrt(2*pi*sdrho**2)*rhosigma$rho)**(-1)*exp(-(log(rhosigma$rho/rho0)**2-2*log(rhosigma$rho/rho0)*meanrho+meanrho**2)/(2*sdrho**2))
+      pisigma <- (sqrt(2*pi*sdsigma**2)*rhosigma$sigma)**(-1)*exp(-(log(rhosigma$sigma/sigma0)**2-2*log(rhosigma$sigma/sigma0)*meansigma+meansigma**2)/(2*sdsigma**2))
+      pirhosigmaM <- pirho*pisigma
+      
+      probInt <- sum(pirhosigmaM)*diff(range(rhosigma$rho))*diff(range(rhosigma$sigma))/length(pirhosigmaM)
+      
+      ListPreview <- list(rhosigmaPC=rhosigmaPC, pirhosigmaPCM=pirhosigmaPCM, probIntPC=probIntPC,
+                          rhosigma=rhosigma, pirhosigmaM=pirhosigmaM, probInt=probInt)
+      
+      return(ListPreview)
+    })
+    
+    LgcpPreviewJointPriorPlot <- function(){
+      ggplotPCprior <- ggplot() +
+        geom_tile(data=data.frame(rho=JointPriorPreviewLgcp()$rhosigmaPC$rho, sigma=JointPriorPreviewLgcp()$rhosigmaPC$sigma, pi=JointPriorPreviewLgcp()$pirhosigmaPCM),
+                  mapping=aes(x=rho, y=sigma, fill=pi)) +
+        labs(title=paste("Joint PC-Prior. Cumulative Prob.=", round(JointPriorPreviewLgcp()$probIntPC, digits=2)),
+             x=expression(rho), y=expression(sigma)) +
+        scale_fill_viridis_c(option="turbo") + theme_bw() + theme(plot.title=element_text(face='bold'))
+      
+      ggplotENpriorAnalytic <- ggplot() +
+        geom_tile(data=data.frame(rho=JointPriorPreviewLgcp()$rhosigma$rho, sigma=JointPriorPreviewLgcp()$rhosigma$sigma, pi=JointPriorPreviewLgcp()$pirhosigmaM),
+                  mapping=aes(x=rho, y=sigma, fill=pi)) +
+        scale_fill_viridis_c(option="turbo") +
+        labs(title=paste("Joint Base Prior. Cumulative Prob.=", round(JointPriorPreviewLgcp()$probInt, digits=2)),
+             x=expression(rho), y=expression(sigma)) +
+        theme_bw() + theme(plot.title=element_text(face='bold'))
+      
+      ggplotJointPriorPreview <- ggplotPCprior + ggplotENpriorAnalytic
+      return(ggplotJointPriorPreview)
+    }
+    
+    downloadFile(
+      id = "LgcpPreviewJointPriorPlot",
+      logger = ss_userAction.Log,
+      filenameroot = "LgcpPreviewJointPriorPlot",
+      aspectratio  = 1,
+      downloadfxns = list(png  = LgcpPreviewJointPriorPlot)
+    )
+    
+    downloadablePlot(id = "LgcpPreviewJointPriorPlot",
+                     logger = ss_userAction.Log,
+                     filenameroot = "LgcpPreviewJointPriorPlot",
+                     aspectratio  = 1,
+                     downloadfxns = list(png=LgcpPreviewJointPriorPlot),
+                     visibleplot  = LgcpPreviewJointPriorPlot)
+    
+    ## Mesh construction for LgcperentialModel ====
+    
+    LgcpMeshBase <- reactive({
+      if(input$LgcpDataSimulatedLoaded=="sim"){
+        DFsample <- as.data.frame(Lgcp.sampling())
+        convexhull <- chull(DFsample[,1:2])
+        convexhull <- c(convexhull, convexhull[1])
+        qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
+        mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
+                             max.edge=c(qloc[1], qloc[2]))
+        sample <- DFsample
+      } else if(input$LgcpDataSimulatedLoaded=="load"){
+        DFsample <- datareadSample()
+        if(input$LgcpRasterSPDE=="raster"){
+          rasterSample <- datareadRaster()[sample(1:nrow(datareadRaster()), min(c(50,nrow(datareadRaster())))),1:2]
+          qloc <- quantile(as.vector(dist(rasterSample)),probs=c(0.03,0.3))
+          convexhull <- chull(datareadRaster()[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=datareadRaster()[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
+                               max.edge=c(qloc[1], qloc[2]))
+          sample <- rasterSample
+        } else if(input$LgcpRasterSPDE=="solvecov"){
+          convexhull <- chull(rbind(DFsample[,1:2],datareadRaster()[,1:2]))
+          convexhull <- c(convexhull, convexhull[1])
+          qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
+          mesh <- fm_mesh_2d_inla(loc.domain=rbind(DFsample[,1:2],datareadRaster()[,1:2])[convexhull,], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
+                               max.edge=c(qloc[1], qloc[2]))
+          sample <- DFsample
+        }
+      }
+      result <- list(mesh=mesh, qloc=qloc, Sample=sample)
+      return(result)
+    })
+    
+    LgcpMesh <- eventReactive(input$buildLgcpMesh, {
+      if(input$LgcpDataSimulatedLoaded=="sim"){
+        DFsample <- as.data.frame(Lgcp.sampling())
+      } else if(input$LgcpDataSimulatedLoaded=="load"){
+        DFsample <- as.data.frame(datareadSample())
+        DFraster <- try(datareadRaster(), silent=TRUE)
+        if(class(DFraster)!="try-error"){
+          DFsample <- rbind(DFsample[,1:2], DFraster[,1:2])
+        }
+      }
+      
+      interiorNonConvex <- function(x, condition, convex, resolution, file.read){
+        if(condition=="interiorLgcpMeshnonconvex"){
+          interior <- inla.nonconvex.hull(points=x, convex=convex, resolution=resolution)
+        } else if(condition=="interiorLgcpMeshcustomboundary"){
+          ext <- tools::file_ext(file.read$datapath)
+          validate(need(ext == c("csv","rds"), "Please upload a csv or rds file"))
+          if(ext=="csv"){coords <- read.csv(file.read$datapath)}
+          else coords <- readRDS(file.read$datapath)
+          innerBorderMesh <- SpatialPolygons(Srl=list(Polygons(srl=list(Polygon(coords=coords)), ID="interiorBoundary")))
+          interior <- inla.sp2segment(sp=innerBorderMesh)
+        } else{interior <- NULL}
+        return(interior)
+      }
+      
+      boundaryNonConvex <- function(x, condition, convex, resolution, file.read){
+        if(condition=="LgcpMeshnonconvex"){
+          boundary <- inla.nonconvex.hull(points=x, convex=convex, resolution=resolution)
+        } else if(condition=="LgcpMeshcustomboundary"){
+          ext <- tools::file_ext(file.read$datapath)
+          validate(need(ext == c("csv","rds"), "Please upload a csv or rds file"))
+          if(ext=="csv"){coords <- read.csv(file.read$datapath)}
+          else coords <- readRDS(file.read$datapath)
+          outerBorderMesh <- SpatialPolygons(Srl=list(Polygons(srl=list(Polygon(coords=coords)), ID="externalBoundary")))
+          boundary <- inla.sp2segment(sp=outerBorderMesh)
+        } else{boundary <- NULL}
+        return(boundary)
+      }
+      
+      if(input$selectionLgcpMesh=="qlocation"){
+        if(input$LgcpRasterSPDE=="raster"){
+          rasterSample <- datareadRaster()[sample(1:nrow(datareadRaster()), min(c(50,nrow(datareadRaster())))),1:2]
+          qloc <- quantile(as.vector(dist(rasterSample)),probs=c(ifelse(input$LgcpCustomMesh,input$LgcpMeshQloc,0.03),0.3))
+          convexhull <- chull(DFsample[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
+                               boundary=list(interiorNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$interiorLgcpMesh, convex=input$interiorcurvatureLgcpMesh, resolution=input$interiorresolutionLgcpMesh, file.read=input$interiorshapefileLgcpMesh),
+                                             boundaryNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$boundaryLgcpMesh, convex=input$curvatureLgcpMesh, resolution=input$resolutionLgcpMesh, file.read=input$shapefileLgcpMesh)))
+          sample <- rasterSample
+        } else if(input$LgcpRasterSPDE=="solvecov"){
+          qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(ifelse(input$LgcpCustomMesh,input$LgcpMeshQloc,0.03),0.3))
+          convexhull <- chull(DFsample[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
+                               boundary=list(interiorNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$interiorLgcpMesh, convex=input$interiorcurvatureLgcpMesh, resolution=input$interiorresolutionLgcpMesh, file.read=input$interiorshapefileLgcpMesh),
+                                             boundaryNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$boundaryLgcpMesh, convex=input$curvatureLgcpMesh, resolution=input$resolutionLgcpMesh, file.read=input$shapefileLgcpMesh)))
+          sample <- DFsample
+        }
+      } else if(input$selectionLgcpMesh=="edgelength"){
+        if(input$LgcpRasterSPDE=="raster"){
+          rasterSample <- datareadRaster()
+          qloc <- input$EdgeLengthLgcpMesh
+          convexhull <- chull(DFsample[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], max.edge=c(1,1.5)*input$EdgeLengthLgcpMesh, cutoff=input$EdgeLengthLgcpMesh/5, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
+                               boundary=list(interiorNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$interiorLgcpMesh, convex=input$interiorcurvatureLgcpMesh, resolution=input$interiorresolutionLgcpMesh, file.read=input$interiorshapefileLgcpMesh),
+                                             boundaryNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$boundaryLgcpMesh, convex=input$curvatureLgcpMesh, resolution=input$resolutionLgcpMesh, file.read=input$shapefileLgcpMesh)))
+          sample <- rasterSample
+        } else if(input$LgcpRasterSPDE=="solvecov"){
+          qloc <- input$EdgeLengthLgcpMesh
+          convexhull <- chull(DFsample[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], max.edge=c(1,1.5)*input$EdgeLengthLgcpMesh,  cutoff=input$EdgeLengthLgcpMesh/5, offset=c(-0.1, -0.2),
+                               boundary=list(interiorNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$interiorLgcpMesh, convex=input$interiorcurvatureLgcpMesh, resolution=input$interiorresolutionLgcpMesh, file.read=input$interiorshapefileLgcpMesh),
+                                             boundaryNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$boundaryLgcpMesh, convex=input$curvatureLgcpMesh, resolution=input$resolutionLgcpMesh, file.read=input$shapefileLgcpMesh)))
+          sample <- DFsample
+        }
+      }
+      
+      result <- list(mesh=mesh, qloc=qloc, Sample=sample)
+      return(result)
+    })
+    
+    ggplotLgcpMesh <- function(){
+      if(input$buildLgcpMesh==0){
+        ggplot()+ gg(LgcpMeshBase()$mesh)+ theme_bw() + xlab("Latitude") + ylab("Longitude") +
+          ggtitle("Mesh over the study region") +
+          geom_point(data=LgcpMeshBase()$Sample,
+                     aes(x=LgcpMeshBase()$Sample[,1],y=LgcpMeshBase()$Sample[,2]), size=1) +
+          theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
+      } else{
+        ggplot()+ gg(LgcpMesh()$mesh)+ theme_bw() + xlab("Latitude") + ylab("Longitude") +
+          ggtitle("Mesh over the study region") +
+          geom_point(data=LgcpMesh()$Sample,
+                     aes(x=LgcpMesh()$Sample[,1],y=LgcpMesh()$Sample[,2]), size=1) +
+          theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
+      }
+      
+    }
+    
+    downloadFile(
+      id = "ggplotLgcpMesh",
+      logger = ss_userAction.Log,
+      filenameroot = "ggplotLgcpMesh",
+      aspectratio  = 1,
+      downloadfxns = list(png  = ggplotLgcpMesh)
+    )
+    
+    downloadablePlot(
+      id = "ggplotLgcpMesh",
+      logger = ss_userAction.Log,
+      filenameroot = "ggplotLgcpMesh",
+      aspectratio  = 1,
+      downloadfxns = list(png  = ggplotLgcpMesh),
+      visibleplot  = ggplotLgcpMesh)
+    
+    ## Lgcp modelling code ====
+    
+    LgcpModelFit <- eventReactive(input$fitLgcp, {
+      showNotification(ui=paste("Fitting the data."), duration = NULL)
+      t1 <- Sys.time()
+      #taking the data from simulation or from the loading tab
+      if(input$LgcpDataSimulatedLoaded=="sim"){
+        DFsample <- as.data.frame(Lgcp.sampling())
+      } else if(input$LgcpDataSimulatedLoaded=="load"){
+        DFsample <- as.data.frame(datareadSample())
+        if(input$LgcpRasterSPDE=="raster"){
+          DFraster <- as.data.frame(datareadRaster())
+        }
+      }
+      
+      variablesChosenDefault <- input$DefaultComponentsLgcp
+      variablesChosenUser <- input$UserComponentsLgcp
+      variablesChosen <- c(variablesChosenDefault, variablesChosenUser)
+      
+      if(input$buildLgcpMesh==0){
+        server_mesh <- LgcpMeshBase()
+        mesh <- server_mesh$mesh
+      } else{
+        server_mesh <- LgcpMesh()
+        mesh <- server_mesh$mesh
+      }
+      
+      if(input$optionLgcpS=="auto"){
+        if(input$KindPriorSpatialEffectLgcp=="PC.prior"){
+          prior.range <- c(mean(c(diff(range(mesh$loc[mesh$segm$int$idx[,1],1])),diff(range(mesh$loc[mesh$segm$int$idx[,1],2]))))/5, 0.5)
+          prior.sigma <- c(1,0.5)
+          spde <- inla.spde2.pcmatern(mesh, prior.range = prior.range, prior.sigma = prior.sigma, alpha=2)
+        } else{
+          prior.range <- mean(c(diff(range(mesh$loc[mesh$segm$int$idx[,1],1])),diff(range(mesh$loc[mesh$segm$int$idx[,1],2]))))/5
+          prior.sigma <- 1
+          alpha <- 2; d <- 2
+          nu <-  alpha - d/2
+          kappa0 <-  log(8*nu)/2 -log(prior.range)
+          tau0 <-  0.5*(lgamma(nu) - lgamma(nu + d/2) - d/2*log(4*pi)) - nu*kappa0 - log(prior.sigma)
+          spde <-  inla.spde2.matern(mesh = mesh, B.tau = cbind(tau0, nu, -1), B.kappa = cbind(kappa0, -1, 0),
+                                     theta.prior.mean = c(0.5,0.5), theta.prior.prec = c(1,1))
+        }
+      } else if(input$optionLgcpS=="custom"){
+        if(input$KindPriorSpatialEffectLgcp=="PC.prior"){
+          prior.range <- as.numeric(unlist(strsplit(input$LgcpPriorRangePC, split=",")))
+          prior.sigma <- as.numeric(unlist(strsplit(input$LgcpPriorStdevPC, split=",")))
+          spde <- inla.spde2.pcmatern(mesh, prior.range = prior.range, prior.sigma = prior.sigma, alpha=2)
+        } else{
+          prior.range <- as.numeric(unlist(strsplit(input$LgcpPriorRangeBase, split=",")))
+          prior.sigma <- as.numeric(unlist(strsplit(input$LgcpPriorStdevBase, split=",")))
+          alpha <- 2; d <- 2
+          nu <-  alpha - d/2
+          kappa0 <-  log(8*nu)/2 -log(prior.range[1])
+          tau0 <-  0.5*(lgamma(nu) - lgamma(nu + d/2) - d/2*log(4*pi)) - nu*kappa0 - log(prior.sigma[1])
+          spde <-  inla.spde2.matern(mesh = mesh, B.tau = cbind(tau0, nu, -1), B.kappa = cbind(kappa0, -1, 0),
+                                     theta.prior.mean = c(prior.range[2],prior.sigma[2]), theta.prior.prec = c(prior.range[3],prior.sigma[3]))
+        }
+      }
+      
+      spde.index <- inla.spde.make.index(name="Spatial", n.spde = spde$n.spde)
+      
+      # LGCP mesh operations
+      ldomain <- unique(mesh$loc[mesh$segm$int$idx,1:2])
+      dmesh <- mesh.dual(mesh = mesh)
+      domain.polys <- Polygons(list(Polygon(ldomain)), '0')
+      domainSP <- SpatialPolygons(list(domain.polys))
+      w <- sapply(1:length(dmesh), function(i) {
+        if (gIntersects(dmesh[i, ], domainSP))
+          return(gArea(gIntersection(dmesh[i, ], domainSP)))
+        else return(0)
+      })
+      
+      n <- nrow(DFsample)
+      nv <- mesh$n
+      imat <- Diagonal(nv, rep(1, nv))
+      lmat <- inla.spde.make.A(mesh, as.matrix(DFsample[,1:2]))
+      A.inf <- rbind(imat, lmat)
+      
+      ### Prediction of covariates ====
+      
+      List.covariates.inf <- list()
+      List.covariates.mesh <- list()
+      List.covariates.pred <- list()
+      
+      
+      if((input$LgcpDataSimulatedLoaded=="load"&input$LgcpRasterSPDE=="solvecov")|input$LgcpDataSimulatedLoaded=="sim"|(input$LgcpDataSimulatedLoaded=="load"&input$LgcpRasterSPDE=="raster"|input$LgcpRasterPred=="SPDEraster")){
+        x.pred <- seq(range(mesh$loc[mesh$segm$int$idx[,1], 1])[1], range(mesh$loc[mesh$segm$int$idx[,1], 1])[2], length.out=input$LgcpSPDErasterInput)
+        y.pred <- seq(range(mesh$loc[mesh$segm$int$idx[,1], 2])[1], range(mesh$loc[mesh$segm$int$idx[,1], 2])[2], length.out=input$LgcpSPDErasterInput)
+        xy.pred <- expand.grid(x=x.pred,y=y.pred)
+        xy.pred <- xy.pred[which(!is.na(over(SpatialPoints(coords=xy.pred),SpatialPolygons(Srl=list(Polygons(srl=list(Polygon(coords=mesh$loc[mesh$segm$int$idx[,1], 1:2])), ID="int")))))),1:2]
+        A.geo.pred <- inla.spde.make.A(mesh=mesh, loc=as.matrix(xy.pred))
+      } else{ #if(input$LgcpDataSimulatedLoaded=="load"&input$LgcpRasterSPDE=="raster"|input$LgcpRasterPred=="rasterpred"){
+        xy.pred <- DFraster
+        A.geo.pred <- inla.spde.make.A(mesh=mesh, loc=as.matrix(xy.pred))
+      }
+      
+      for(i in seq_along(variablesChosenUser)){
+        if(!is.character(DFsample[,variablesChosenUser[i]])){
+          prior.range.cov <- c(mean(c(diff(range(mesh$loc[mesh$segm$int$idx[,1],1])),diff(range(mesh$loc[mesh$segm$int$idx[,1],2]))))/5, 0.5)
+          prior.sigma.cov <- c(1,0.5)
+          spde.cov <- inla.spde2.pcmatern(mesh, prior.range = prior.range.cov, prior.sigma = prior.sigma.cov, alpha=2)
+          spde.cov.index <- inla.spde.make.index(name="spatial.cov", n.spde = spde.cov$n.spde)
+          formula.cov <- y ~ -1 + Intercept + f(spatial.cov, model=spde.cov)
+          
+          if((input$LgcpDataSimulatedLoaded=="load"&input$LgcpRasterSPDE=="solvecov")|input$LgcpDataSimulatedLoaded=="sim"){
+            x.pred <- seq(range(mesh$loc[mesh$segm$int$idx[,1], 1])[1], range(mesh$loc[mesh$segm$int$idx[,1], 1])[2], length.out=input$LgcpSPDErasterInput)
+            y.pred <- seq(range(mesh$loc[mesh$segm$int$idx[,1], 2])[1], range(mesh$loc[mesh$segm$int$idx[,1], 2])[2], length.out=input$LgcpSPDErasterInput)
+            xy.pred <- expand.grid(x=x.pred,y=y.pred)
+            xy.pred <- xy.pred[which(!is.na(over(SpatialPoints(coords=xy.pred),SpatialPolygons(Srl=list(Polygons(srl=list(Polygon(coords=mesh$loc[mesh$segm$int$idx[,1], 1:2])), ID="int")))))),1:2]
+            A.geo.pred <- inla.spde.make.A(mesh=mesh, loc=as.matrix(xy.pred))
+            Inf.stack.cov <- inla.stack(data=list(y=DFsample[,variablesChosenUser[i]]),
+                                        A=list(lmat, 1),
+                                        effects=list(list(spatial.cov=spde.cov.index$spatial.cov),
+                                                     list(Intercept=rep(1,nrow(DFsample)))
+                                        ),
+                                        tag="Inference.cov")
+            Pred.mesh.stack.cov <- inla.stack(data=list(y=rep(NA, mesh$n)),
+                                              A=list(diag(1,nrow=mesh$n), 1),
+                                              effects=list(list(spatial.cov=spde.cov.index$spatial.cov),
+                                                           list(Intercept=rep(1,mesh$n))
+                                              ),
+                                              tag="Mesh.cov")
+            Pred.stack.cov <- inla.stack(data=list(y=rep(NA,nrow(xy.pred))),
+                                         A=list(A.geo.pred, 1),
+                                         effects=list(list(spatial.cov=spde.cov.index$spatial.cov),
+                                                      list(Intercept=rep(1,nrow(xy.pred)))
+                                         ),
+                                         tag="Prediction.cov")
+            Total.stack.cov <- inla.stack(Inf.stack.cov, Pred.mesh.stack.cov, Pred.stack.cov)
+            mod.cov <- inla(formula=formula.cov, data=inla.stack.data(Total.stack.cov), family="gaussian",
+                            control.predictor = list(compute=FALSE, A=inla.stack.A(Total.stack.cov)))
+            indx.inf <- inla.stack.index(Total.stack.cov, tag="Inference.cov")$data
+            indx.mesh <- inla.stack.index(Total.stack.cov, tag="Mesh.cov")$data
+            indx.pred <- inla.stack.index(Total.stack.cov, tag="Prediction.cov")$data
+            List.covariates.inf[[variablesChosenUser[i]]] <- as.numeric(!is.na(DFsample[,variablesChosenUser[i]]))*DFsample[,variablesChosenUser[i]] + as.numeric(is.na(DFsample[,variablesChosenUser[i]]))*mod.cov$summary.fitted.values[indx.inf,"mean"]
+            List.covariates.mesh[[variablesChosenUser[i]]] <- mod.cov$summary.fitted.values[indx.mesh,"mean"]
+            List.covariates.pred[[variablesChosenUser[i]]] <- mod.cov$summary.fitted.values[indx.pred,"mean"]
+          } else if(input$LgcpDataSimulatedLoaded=="load"&input$LgcpRasterSPDE=="raster"|input$LgcpRasterPred=="SPDEraster"){
+            x.pred <- seq(range(mesh$loc[mesh$segm$int$idx[,1], 1])[1], range(mesh$loc[mesh$segm$int$idx[,1], 1])[2], length.out=input$LgcpSPDErasterInput)
+            y.pred <- seq(range(mesh$loc[mesh$segm$int$idx[,1], 2])[1], range(mesh$loc[mesh$segm$int$idx[,1], 2])[2], length.out=input$LgcpSPDErasterInput)
+            xy.pred <- expand.grid(x=x.pred,y=y.pred)
+            xy.pred <- xy.pred[which(!is.na(over(SpatialPoints(coords=xy.pred),SpatialPolygons(Srl=list(Polygons(srl=list(Polygon(coords=mesh$loc[mesh$segm$int$idx[,1], 1:2])), ID="int")))))),1:2]
+            A.geo.pred <- inla.spde.make.A(mesh=mesh, loc=as.matrix(xy.pred))
+            if(variablesChosenUser[i] %in% colnames(DFraster)){
+              Inf.stack.cov <- inla.stack(data=list(y=c(DFsample[,variablesChosenUser[i]], DFraster[!is.na(DFraster[,variablesChosenUser[i]]),variablesChosenUser[i]])),
+                                          A=list(inla.spde.make.A(mesh=mesh, loc=as.matrix(rbind(DFsample[,1:2],DFraster[!is.na(DFraster[,variablesChosenUser[i]]),1:2]))), 1),
+                                          effects=list(list(spatial.cov=spde.cov.index$spatial.cov),
+                                                       list(Intercept=rep(1,nrow(DFsample)+nrow(DFraster)))
+                                          ),
+                                          tag="Inference.cov")
+            } else{
+              Inf.stack.cov <- inla.stack(data=list(y=DFsample[,variablesChosenUser[i]]),
+                                          A=list(inla.spde.make.A(mesh=mesh, loc=as.matrix(DFsample[,1:2])), 1),
+                                          effects=list(list(spatial.cov=spde.cov.index$spatial.cov),
+                                                       list(Intercept=rep(1,nrow(DFsample)))
+                                          ),
+                                          tag="Inference.cov")
+            }
+            Pred.mesh.stack.cov <- inla.stack(data=list(y=rep(NA, mesh$n)),
+                                              A=list(diag(1,nrow=mesh$n), 1),
+                                              effects=list(list(spatial.cov=spde.cov.index$spatial.cov),
+                                                           list(Intercept=rep(1,mesh$n))
+                                              ),
+                                              tag="Mesh.cov")
+            Pred.stack.cov <- inla.stack(data=list(y=rep(NA,nrow(xy.pred))),
+                                         A=list(A.geo.pred, 1),
+                                         effects=list(list(spatial.cov=spde.cov.index$spatial.cov),
+                                                      list(Intercept=rep(1,nrow(xy.pred)))
+                                         ),
+                                         tag="Prediction.cov")
+            Total.stack.cov <- inla.stack(Inf.stack.cov, Pred.mesh.stack.cov, Pred.stack.cov)
+            mod.cov <- inla(formula=formula.cov, data=inla.stack.data(Total.stack.cov), family="gaussian",
+                            control.predictor = list(compute=FALSE, A=inla.stack.A(Total.stack.cov)))
+            indx.inf <- inla.stack.index(Total.stack.cov, tag="Inference.cov")$data
+            indx.mesh <- inla.stack.index(Total.stack.cov, tag="Mesh.cov")$data
+            indx.pred <- inla.stack.index(Total.stack.cov, tag="Prediction.cov")$data
+            List.covariates.inf[[variablesChosenUser[i]]] <- as.numeric(!is.na(DFsample[,variablesChosenUser[i]]))*DFsample[,variablesChosenUser[i]] + (as.numeric(is.na(DFsample[,variablesChosenUser[i]]))*(mod.cov$summary.fitted.values[indx.inf,"mean"])[1:nrow(DFsample)])
+            List.covariates.mesh[[variablesChosenUser[i]]] <- mod.cov$summary.fitted.values[indx.mesh,"mean"]
+            List.covariates.pred[[variablesChosenUser[i]]] <- mod.cov$summary.fitted.values[indx.pred,"mean"]
+          } else if(input$LgcpDataSimulatedLoaded=="load"&input$LgcpRasterSPDE=="raster"|input$LgcpRasterPred=="rasterpred"){
+            xy.pred <- DFraste[,1:2]
+            A.geo.pred <- inla.spde.make.A(mesh=mesh, loc=as.matrix(xy.pred))
+            
+            Inf.stack.cov <- inla.stack(data=list(y=c(DFsample[,variablesChosenUser[i]], DFraster[,variablesChosenUser[i]])),
+                                        A=list(inla.spde.make.A(mesh=mesh, loc=as.matrix(rbind(DFsample[,1:2],DFraster[,1:2]))), 1),
+                                        effects=list(list(spatial.cov=spde.cov.index$spatial.cov),
+                                                     list(Intercept=rep(1,nrow(DFsample)+nrow(DFraster)))
+                                        ),
+                                        tag="Inference.cov")
+            Pred.mesh.stack.cov <- inla.stack(data=list(y=rep(NA, mesh$n)),
+                                              A=list(diag(1,nrow=mesh$n), 1),
+                                              effects=list(list(spatial.cov=spde.cov.index$spatial.cov),
+                                                           list(Intercept=rep(1,mesh$n))
+                                              ),
+                                              tag="Mesh.cov")
+            Total.stack.cov <- inla.stack(Inf.stack.cov, Pred.mesh.stack.cov)
+            mod.cov <- inla(formula=formula.cov, data=inla.stack.data(Total.stack.cov), family="gaussian",
+                            control.predictor = list(compute=FALSE, A=inla.stack.A(Total.stack.cov)))
+            indx.mesh <- inla.stack.index(Total.stack.cov, tag="Mesh.cov")$data
+            List.covariates.mesh[[variablesChosenUser[i]]] <- mod.cov$summary.fitted.values[indx.mesh,"mean"]
+            
+            List.covariates.inf[[variablesChosenUser[i]]] <- DFsample[,variablesChosenUser[i]]
+            List.covariates.pred[[variablesChosenUser[i]]] <- DFraster[,variablesChosenUser[i]]
+          }
+        } else{
+          if((input$LgcpDataSimulatedLoaded=="load"&input$LgcpRasterSPDE=="solvecov")|input$LgcpDataSimulatedLoaded=="sim"){
+            cov.inf.indx <- as.vector(unlist(lapply(X=1:nrow(DFsample), FUN=function(Y){which.min(apply(X=(DFsample[!is.na(DFsample[,variablesChosenUser[i]]),1:2]-matrix(DFsample[Y,1:2],ncol=2))**2, MARGIN=1, FUN=sum))})))
+            List.covariates.inf[[variablesChosenUser[i]]] <- DFsample[cov.inf.indx, variablesChosenUser[i]]
+            mesh.indx <- as.vector(unlist(lapply(X=1:nrow(mesh$loc), FUN=function(Y){which.min(apply(X=(DFsample[!is.na(DFsample[,variablesChosenUser[i]]),1:2]-matrix(mesh$loc[Y,1:2],ncol=2))**2, MARGIN=1, FUN=sum))})))
+            List.covariates.mesh[[variablesChosenUser[i]]] <- DFsample[mesh.indx, variablesChosenUser[i]]
+            
+            LgcpFactorModelDF <- data.frame(y=1, Lgcp=c(List.covariates.mesh[[variablesChosenUser[i]]], List.covariates.inf[[variablesChosenUser[i]]]))
+            colnames(LgcpFactorModelDF) <- c("y", variablesChosenUser[i])
+            idx.factor <- which(variablesChosenUser[i]==names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])[names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])%in%c(variablesChosenUser)])
+            
+            if(eval(parse(text=paste0("input$LgcpKindPredictionFactorLevel",idx.factor)))=="nearest"){
+              cov.pred.ind <- as.vector(unlist(lapply(X=1:nrow(xy.pred), FUN=function(Y){which.min(apply(X=(DFsample[!is.na(DFsample[,variablesChosenUser[i]]),1:2]-matrix(xy.pred[Y,1:2],ncol=2))**2, MARGIN=1, FUN=sum))})))
+              List.covariates.pred[[variablesChosenUser[i]]] <- DFsample[cov.pred.ind, variablesChosenUser[i]]
+            } else{
+              List.covariates.pred[[variablesChosenUser[i]]] <- rep(NA, times=nrow(xy.pred))
+            }
+            
+          } else {
+            DFsampleraster <- rbind(DFsample[,c(1:2,which(variablesChosenUser[i]==colnames(DFsample)))], DFraster[,c(1:2, which(variablesChosenUser[i]==colnames(DFraster)))])
+            cov.inf.indx <- as.vector(unlist(lapply(X=1:nrow(DFsample), FUN=function(Y){which.min(apply(X=(DFsampleraster[!is.na(DFsampleraster[,variablesChosenUser[i]]),1:2]-matrix(DFsample[Y,1:2],ncol=2))**2, MARGIN=1, FUN=sum))})))
+            List.covariates.inf[[variablesChosenUser[i]]] <- DFsample[cov.inf.indx, variablesChosenUser[i]]
+            mesh.indx <- as.vector(unlist(lapply(X=1:nrow(mesh$loc), FUN=function(Y){which.min(apply(X=(DFsampleraster[!is.na(DFsampleraster[,variablesChosenUser[i]]),1:2]-matrix(mesh$loc[Y,1:2],ncol=2))**2, MARGIN=1, FUN=sum))})))
+            List.covariates.mesh[[variablesChosenUser[i]]] <- DFsample[mesh.indx, variablesChosenUser[i]]
+            
+            LgcpFactorModelDF <- data.frame(y=1, Lgcp=c(List.covariates.mesh[[variablesChosenUser[i]]], List.covariates.inf[[variablesChosenUser[i]]]))
+            colnames(LgcpFactorModelDF) <- c("y", variablesChosenUser[i])
+            idx.factor <- which(variablesChosenUser[i]==names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])[names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])%in%c(variablesChosenUser)])
+            
+            if(eval(parse(text=paste0("input$LgcpKindPredictionFactorLevel",idx.factor)))=="nearest"){
+              cov.pred.ind <- as.vector(unlist(lapply(X=1:nrow(xy.pred), FUN=function(Y){which.min(apply(X=(DFsampleraster[!is.na(DFsampleraster[,variablesChosenUser[i]]),1:2]-matrix(xy.pred[Y,1:2],ncol=2))**2, MARGIN=1, FUN=sum))})))
+              List.covariates.pred[[variablesChosenUser[i]]] <- DFsample[cov.pred.ind, variablesChosenUser[i]]
+            } else{
+              List.covariates.pred[[variablesChosenUser[i]]] <- rep(NA, times=nrow(xy.pred))
+            }
+            
+          }
+        }
+      }
+      
+      ### Building the main model and stacks structure ====
+      
+      Inf.lgcp.effects.list <- list(
+        list(),
+        list()
+      )
+      
+      Pred.lgcp.effects.list <- list(
+        list(),
+        list()
+      )
+      
+      formula_mod <- c("y ~ -1")
+      
+      A_Inf.spde1 <- list()
+      A_Pred.spde1 <- list()
+      
+      for(i in seq_along(variablesChosen)){
+        if(variablesChosen[i]=="Intercept"){
+          formula_mod <- paste(formula_mod, "f(Intercept, model='linear')", sep=" + ")
+          Inf.lgcp.effects.list[[2]][["Intercept"]] <- c(rep(1, times=nv), rep(1, times=n))
+          Pred.lgcp.effects.list[[2]][["Intercept"]] <- rep(1, times=nrow(A.geo.pred))
+          
+        } else if(variablesChosen[i]=="Spatial Effect"){
+          formula_mod <- paste(formula_mod, "f(Spatial, model=spde)", sep=" + ")
+          Inf.lgcp.effects.list[[1]][["Spatial"]] <- spde.index$Spatial
+          Pred.lgcp.effects.list[[1]][["Spatial"]] <- spde.index$Spatial
+        } else{
+          j <- which(variablesChosen[i]==variablesChosenUser)
+          if(!is.character(DFsample[,variablesChosenUser[j]])){
+            if(eval(parse(text=paste0("input$LgcpEffectCov",j)))=="rw1"|eval(parse(text=paste0("input$LgcpEffectCov",j)))=="rw2"){
+              if(eval(parse(text=paste0("input$LgcpEffectCustomPrior",j)))=="custom"){
+                if(eval(parse(text=paste0("input$LgcpEffectCovKindPrior",j)))=="pc"){
+                  assign(paste0("pc.values", variablesChosenUser[j]), c( as.numeric(unlist(strsplit(eval(parse(text=paste0("input$LgcpEffectCovPriorPCValues",j))), ","))) ))
+                  formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model='",eval(parse(text=paste0("input$LgcpEffectCov",j))),"', hyper=list(prec=list(prior='pc.prec', param=", eval(parse(text=paste0("pc.values", variablesChosenUser[j]))), ")), constr=",eval(parse(text=paste0("input$LgcpEffectCovConstr",j))),", scale.model=TRUE)"), sep=" + ")
+                } else if(eval(parse(text=paste0("input$LgcpEffectCovKindPrior",j)))=="unif"){
+                  lim <- as.numeric(unlist(strsplit(eval(parse(text=paste0("input$LgcpEffectCovPriorUnif",j))), ",")))
+                  sigma <- seq(0, lim[2]*3, length.out=1E5)
+                  theta <- -2*log(sigma)
+                  logdens <- sapply(X=sigma, FUN=logdunif, lim=lim)
+                  unif.prior <- list(theta=list(prior=paste0("table: ", paste(c(theta, logdens), collapse=" "))))
+                  assign(paste0("hyper", variablesChosenUser[j]), unif.prior )
+                  formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model='",eval(parse(text=paste0("input$LgcpEffectCov",j))),"', hyper=",paste0("hyper",variablesChosenUser[j]),  ", constr=",eval(parse(text=paste0("input$LgcpEffectCovConstr",j))),", scale.model=TRUE)"), sep=" + ")
+                } else if(eval(parse(text=paste0("input$LgcpEffectCovKindPrior",j)))=="unifflat"){
+                  assign(paste0("unifflat.prior",variablesChosenUser[j]), "expression:
+                  log_dens = 0 - log(2) - theta/2
+                  ")
+                  formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model='",eval(parse(text=paste0("input$LgcpEffectCov",j))),"', hyper=list(prec=list(prior=",paste0("unifflat.prior",variablesChosenUser[j]),")), constr=",eval(parse(text=paste0("input$LgcpEffectCovConstr",j))),", scale.model=TRUE)"), sep=" + ")
+                } else{
+                  assign(paste0("hyper",variablesChosenUser[j]), list(prec=list(prior="loggamma",param=c( as.numeric(unlist(strsplit(eval(parse(text=paste0("input$LgcpEffectCovPriorBaseValues",j))), ","))) ))) )
+                  formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model='",eval(parse(text=paste0("input$LgcpEffectCov",j))),"', hyper=",paste0("hyper",variablesChosenUser[j]),  ", constr=",eval(parse(text=paste0("input$LgcpEffectCovConstr",j))),", scale.model=TRUE)"), sep=" + ")
+                }
+              } else{
+                formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model='",eval(parse(text=paste0("input$LgcpEffectCov",j))),  "', constr=",eval(parse(text=paste0("input$LgcpEffectCovConstr",j))),", scale.model=TRUE)"), sep=" + ")
+              }
+              group.cov <- inla.group(x=c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]], List.covariates.pred[[variablesChosenUser[j]]]), n=eval(parse(text=paste0("input$LgcpEffectCovNodes",j))), method="cut")
+              
+              Inf.lgcp.effects.list[[2]][[variablesChosenUser[j]]] <- group.cov[seq_len(n + nv)]
+              Pred.lgcp.effects.list[[2]][[variablesChosenUser[j]]] <- group.cov[-seq_len(n + nv)]
+              
+            } else if(eval(parse(text=paste0("input$LgcpEffectCov",j)))=="spde1"){
+              Tot_cov <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]], List.covariates.pred[[variablesChosenUser[j]]])
+              spde1_nodes <- seq(min(Tot_cov), max(Tot_cov), length.out=eval(parse(text=paste0("input$LgcpEffectCovNodes",j))))
+              mesh1d <- fm_mesh_1d(loc=spde1_nodes)
+              
+              if(eval(parse(text=paste0("input$LgcpEffectCustomPrior",j)))=="custom"){
+                if(eval(parse(text=paste0("input$LgcpEffectCovKindPrior",j)))=="pc"){
+                  hyper <- as.numeric(unlist(strsplit(eval(parse(text=paste0("input$LgcpEffectCovPriorPCValues",i))), ",")))
+                  assign(paste0("spde1d_",variablesChosenUser[j]) ,inla.spde2.pcmatern(mesh=mesh1d, prior.range=c(abs(diff(range(Tot_cov)))/5, 0.5), prior.sigma=c(1,0.5)))
+                } else{
+                  prior.range <- as.numeric(unlist(strsplit(eval(parse(text=paste0("input$LgcpEffectCovPriorBaseValues",i))), ",")))[1:3]
+                  prior.sigma <- as.numeric(unlist(strsplit(eval(parse(text=paste0("input$LgcpEffectCovPriorBaseValues",i))), ",")))[4:6]
+                  alpha <- 2; d <- 2
+                  nu <-  alpha - d/2
+                  kappa0 <-  log(8*nu)/2 -log(prior.range[1])
+                  tau0 <-  0.5*(lgamma(nu) - lgamma(nu + d/2) - d/2*log(4*pi)) - nu*kappa0 - log(prior.sigma[1])
+                  assign(paste0("spde1d_",variablesChosenUser[j]), inla.spde2.matern(mesh = mesh1d, B.tau = cbind(tau0, nu, -1), B.kappa = cbind(kappa0, -1, 0),
+                                                                                     theta.prior.mean = c(prior.range[2],prior.sigma[2]), theta.prior.prec = c(prior.range[3],prior.sigma[3])))
+                }
+              } else {
+                assign(paste0("spde1d_",variablesChosenUser[j]), inla.spde2.pcmatern(mesh=mesh1d, prior.range=c(abs(diff(range(Tot_cov)))/5, 0.5), prior.sigma=c(1,0.5)))
+              }
+              
+              spde1d.index <- inla.spde.make.index(name=paste0(variablesChosenUser[j]), n.spde=eval(parse(text=paste0("spde1d_",variablesChosenUser[j])))$n.spde)
+              formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model=", paste0("spde1d_",variablesChosenUser[j]),  ")"), sep=" + ")
+
+              Inf.lgcp.effects.list[[length(A_Inf.spde1)+3]] <- list()
+              Pred.lgcp.effects.list[[length(A_Inf.spde1)+3]] <- list()
+              Inf.lgcp.effects.list[[length(A_Inf.spde1)+3]][[variablesChosenUser[j]]] <- spde1d.index[[1]]
+              Pred.lgcp.effects.list[[length(A_Inf.spde1)+3]][[variablesChosenUser[j]]] <- spde1d.index[[1]]
+              
+              A_Inf.spde1[[length(A_Inf.spde1)+1]] <- inla.spde.make.A(mesh=mesh1d, loc=Tot_cov[seq_len(nv+n)])
+              A_Pred.spde1[[length(A_Pred.spde1)+1]] <- inla.spde.make.A(mesh=mesh1d, loc=Tot_cov[-seq_len(nv+n)])
+              
+            } else if(eval(parse(text=paste0("input$LgcpEffectCov",j)))=="linear"){
+              if(eval(parse(text=paste0("input$LgcpEffectCustomPrior",j)))=="custom"){
+                hyper <- as.numeric(unlist(strsplit(eval(parse(text=paste0("input$LgcpEffectCovPriorBaseValues",j))), ",")))
+                formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model='",eval(parse(text=paste0("input$LgcpEffectCov",j))),"', mean.linear=", hyper[1], ",prec.linear=", hyper[2],")"), sep=" + ")
+              } else{
+                formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model='",eval(parse(text=paste0("input$LgcpEffectCov",j))),"')"), sep=" + ")
+              }
+              
+              Inf.lgcp.effects.list[[2]][[variablesChosenUser[j]]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
+              Pred.lgcp.effects.list[[2]][[variablesChosenUser[j]]] <- c(List.covariates.pred[[variablesChosenUser[j]]])
+              
+            } else{
+              showNotification(ui=paste("The effect of numerical covariates cannot possess an independent and identically distributed (iid) structure. If this is required, the variable values should be recorded as text, not as numerical input.."), duration = NULL)
+            }
+          } else{ # Section for factor variables
+            if(eval(parse(text=paste0("input$LgcpEffectCov",j)))=="iid"){
+              LgcpFactorModelDF <- data.frame(y=1, Lgcp=c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]]))
+              colnames(LgcpFactorModelDF) <- c("y", variablesChosenUser[j])
+              idx.factor <- which(variablesChosenUser[j]==names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])[names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])%in%c(variablesChosenUser)])
+              
+              Inf.lgcp.effects.list[[2]][[variablesChosenUser[j]]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
+              Pred.lgcp.effects.list[[2]][[variablesChosenUser[j]]] <- if(eval(parse(text=paste0("input$LgcpKindPredictionFactorLevel",idx.factor)))=="reference"){
+                rep( eval(parse(text=paste0("input$LgcpEffectCovFactorPred",idx.factor))), times=length(List.covariates.pred[[variablesChosenUser[j]]]))
+              } else{List.covariates.pred[[variablesChosenUser[j]]]}
+              
+              #c(List.covariates.pred[[variablesChosenUser[j]]])
+              
+              if(eval(parse(text=paste0("input$LgcpEffectCustomPrior",j)))=="custom"){
+                if(eval(parse(text=paste0("input$LgcpEffectCovKindPrior",j)))=="pc"){
+                  hyper <- list(prec=list(prior="pc.prior",param=c( as.numeric(unlist(strsplit(eval(parse(text=paste0("input$LgcpEffectCovPriorPCValues",j))), ","))) )))
+                  formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model='",eval(parse(text=paste0("input$LgcpEffectCov",j))),"', hyper=",hyper, ", constr=",eval(parse(text=paste0("input$LgcpEffectCovConstr",j))),")"), sep=" + ")
+                } else if(eval(parse(text=paste0("input$LgcpEffectCovKindPrior",j)))=="base"){
+                  hyper <- list(prec=list(prior="loggamma",param=c( as.numeric(unlist(strsplit(eval(parse(text=paste0("input$LgcpEffectCovPriorBaseValues",j))), ","))) )))
+                  formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model='iid', hyper=",hyper,  ", constr=",eval(parse(text=paste0("input$LgcpEffectCovConstr",j))),")"), sep=" + ")
+                } else if(eval(parse(text=paste0("input$LgcpEffectCovKindPrior",j)))=="unif"){
+                  lim <- as.numeric(unlist(strsplit(eval(parse(text=paste0("input$LgcpEffectCovPriorUnif",j))), ",")))
+                  sigma <- seq(lim[1]+1E-5, lim[2]*3, length.out=1E5)
+                  theta <- -2*log(sigma)
+                  logdens <- sapply(X=sigma, FUN=logdunif, lim=lim)
+                  unif.prior <- list(theta=list(prior=paste0("table: ", paste(c(theta, logdens), collapse=" "))))
+                  assign(paste0("hyper", variablesChosenUser[j]), unif.prior )
+                  formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model='iid', hyper=",paste0("hyper",variablesChosenUser[j]),  ", constr=",eval(parse(text=paste0("input$LgcpEffectCovConstr",j))),", scale.model=TRUE)"), sep=" + ")
+                } else{ # flatunif
+                  unifflat.prior= "expression:
+                  log_dens = 0 - log(2) - theta/2
+                  "
+                  formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model='iid', hyper=list(prec=list(prior=",unifflat.prior,")), constr=",eval(parse(text=paste0("input$LgcpEffectCovConstr",j))),")"), sep=" + ")
+                }
+              } else{
+                formula_mod <- paste(formula_mod, paste0("f(", variablesChosenUser[j], ", model='iid'",  ", constr=",eval(parse(text=paste0("input$LgcpEffectCovConstr",j))),")"), sep=" + ")
+              }
+              
+            } else{
+              LgcpFactorModelDF <- data.frame(y=1, Lgcp=c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]]))
+              colnames(LgcpFactorModelDF) <- c("y", variablesChosenUser[j])
+              FactorVariables <- data.frame( model.matrix(object=as.formula(paste0("y~-1+", variablesChosenUser[j])), LgcpFactorModelDF ) )
+              idx.factor <- which(variablesChosenUser[j]==names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])[names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])%in%c(variablesChosenUser)])
+              for(l in setdiff(colnames(FactorVariables),paste0(variablesChosenUser[j], eval(parse(text=paste0("input$LgcpEffectCovFactorPred",idx.factor))) ))){
+                ll <- l
+                Inf.lgcp.effects.list[[2]][[l]] <- FactorVariables[,l]
+                Pred.lgcp.effects.list[[2]][[l]] <- rep(0, length(List.covariates.pred[[variablesChosenUser[j]]]))
+                if(eval(parse(text=paste0("input$LgcpEffectCustomPrior",j)))=="custom"|eval(parse(text=paste0("input$LgcpEffectCov",j)))=="linear"){
+                  hyper <- as.numeric(unlist(strsplit(eval(parse(text=paste0("input$LgcpEffectCovPriorBaseValues",j))), ",")))
+                  formula_mod <- paste(formula_mod, paste0("f(", l, ", model='linear', mean.linear=", hyper[1], ",prec.linear=", hyper[2],")"), sep=" + ")
+                } else{
+                  formula_mod <- paste(formula_mod, paste0("f(", l, ", model='linear')"), sep=" + ")
+                }
+              }
+            }
+          }
+        }
+      }
+      
+      ### Stacks of the geostatistical, Lgcp and prediction layers ====
+      
+      ResponseVariable <- DFsample[,3]
+      
+      A_inf_tot <- c(A.inf,1)
+      if(length(A_Inf.spde1)>0){
+        for(i in seq_along(A_Inf.spde1)){
+          A_inf_tot[[2+i]] <- A_Inf.spde1[[i]]
+        }
+      }
+      
+      A_pred_tot <- c(A.geo.pred,1)
+      if(length(A_Inf.spde1)>0){
+        for(i in seq_along(A_Inf.spde1)){
+          A_pred_tot[[2+i]] <- A_Pred.spde1[[i]]
+        }
+      }
+      
+      Inf.LGCP.stack <- inla.stack(data=list(y=c(rep(0,times=nv), rep(1,times=n)), e=c(w, rep(0,n))),
+                                   A=A_inf_tot,
+                                   effects=Inf.lgcp.effects.list,
+                                   tag="Inference_Lgcp"
+      ) 
+        
+      Pred.LGCP.stack <- inla.stack(data=list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=1)),
+                                   A=A_pred_tot,
+                                   effects=Pred.lgcp.effects.list,
+                                   tag="Prediction_Lgcp")
+      
+      Total.stack <- inla.stack(Inf.LGCP.stack, Pred.LGCP.stack)
+      
+      ### INLA model ====
+      
+      formula_inla <- as.formula(formula_mod)
+      
+      if(input$autocustomLgcpFamily=='custom'){
+        if(input$LgcpFamilyPriorKind=="pc"){
+          family.pcprec <- as.numeric(unlist(strsplit(input$LgcpFamilyHyper,",")))
+          controlFamily <- list(hyper = list(prec = list(prior="pc.prec", param=family.pcprec)))
+        } else if(input$LgcpFamilyPriorKind=="unif"){
+          lim <- as.numeric(unlist(strsplit(input$LgcpFamilyHyper,",")))
+          sigma <- seq(0, lim[2]*3, length.out=1E5)
+          theta <- -2*log(sigma)
+          logdens <- sapply(X=sigma, FUN=logdunif, lim=lim)
+          family.unif.prior <- list(theta=list(prior=paste0("table: ", paste(c(theta, logdens), collapse=" "))))
+          controlFamily <- list(hyper = list(theta = list(prior=family.unif.prior)))
+        } else if(input$LgcpFamilyPriorKind=="unifflat"){
+          unifflat.prior= "expression:
+                  log_dens = 0 - log(2) - theta/2
+                  "
+          controlFamily <- list(hyper = list(prec = list(prior=unifflat.prior)))
+        } else{
+          controlFamily <- list(hyper = list(prec = list(prior="loggamma", param=as.numeric(unlist(strsplit(input$LgcpFamilyHyper,","))))), 
+                                control.link=list(model="log"))
+        }
+      } else{
+        controlFamily <- list(control.link=list(model="log"))
+      }
+      
+      if(input$autocustomLgcpMode=='custom'){
+        controlModeTheta <- list(theta=as.numeric(unlist(strsplit(input$LgcpModeHyper,","))), restart=TRUE)
+      } else{controlModeTheta <- inla.set.control.mode.default()}
+      
+      if(input$INLAModeLgcp=="classic"){
+        controlINLA <- list(strategy=input$strategyapproxINLALgcp,
+                            int.strategy=input$strategyintINLALgcp)
+      } else{
+        controlINLA <- list()
+      }
+      
+      Lgcp.model <- inla(formula=formula_inla, family = c(input$SelectLgcpFamily),
+                         data = inla.stack.data(Total.stack),
+                         E = inla.stack.data(Total.stack)$e,
+                         control.inla = controlINLA,
+                         control.predictor = list(A = inla.stack.A(Total.stack), compute = TRUE, link = 1),
+                         control.family = controlFamily,
+                         control.mode = controlModeTheta,
+                         control.compute = list(cpo = TRUE, dic = TRUE, config = TRUE),
+                         inla.mode=input$INLAModeLgcp,
+                         verbose=FALSE)
+      
+      index.pred <- inla.stack.index(Total.stack, "Prediction_Lgcp")$data
+      DFpred <- data.frame(Latitude=xy.pred[,1], Longitude=xy.pred[,2])
+      DFpred$Abundance.mean <- Lgcp.model$summary.fitted.values[index.pred, "mean"]
+      DFpred$Abundance.median <- Lgcp.model$summary.fitted.values[index.pred, "0.5quant"]
+      DFpred$Abundance.sd <- Lgcp.model$summary.fitted.values[index.pred, "sd"]
+      
+      colnames(DFpred)[1:2] <- colnames(DFsample)[1:2]
+      
+      DFpredictorMeanMedianStdev <- data.frame(Latitude=xy.pred[,1], Longitude=xy.pred[,2],
+                                               Predictor.mean=Lgcp.model$summary.linear.predictor[index.pred, "mean"],
+                                               Predictor.median=Lgcp.model$summary.linear.predictor[index.pred, "0.5quant"],
+                                               Predictor.stdev=Lgcp.model$summary.linear.predictor[index.pred, "sd"])
+      
+      colnames(DFpredictorMeanMedianStdev)[1:2] <- colnames(DFsample)[1:2]
+      
+      gridSpatial <- expand.grid(x=seq(min(DFpred[,1]), max(DFpred[,1]),length.out=input$dimLgcpmap),
+                                 y=seq(min(DFpred[,2]), max(DFpred[,2]), length.out=input$dimLgcpmap))
+      gridSpatial <- gridSpatial[which(!is.na(over(SpatialPoints(coords=gridSpatial),SpatialPolygons(Srl=list(Polygons(srl=list(Polygon(coords=mesh$loc[mesh$segm$int$idx[,1], 1:2])), ID="int")))))),1:2]
+      
+      A.spatial <- inla.spde.make.A(mesh=mesh, loc=as.matrix(gridSpatial))
+      
+      DFspatialMeanMedianStdev <- data.frame(Latitude=as.vector(gridSpatial[,1]), Longitude=as.vector(gridSpatial[,2]),
+                                             Spatial.mean=as.vector(A.spatial%*%Lgcp.model$summary.random$Spatial$mean),
+                                             Spatial.median=as.vector(A.spatial%*%Lgcp.model$summary.random$Spatial$`0.5quant`),
+                                             Spatial.stdev=as.vector(A.spatial%*%Lgcp.model$summary.random$Spatial$sd))
+      
+      colnames(DFspatialMeanMedianStdev)[1:2] <- colnames(DFsample)[1:2]
+      
+      result <- list(DFpredAbunMeanMedianStdev=list(DFpredAbunMeanMedianStdev=DFpred),
+                     DFpredictorMeanMedianStdev=list(DFpredictorMeanMedianStdev=DFpredictorMeanMedianStdev),
+                     DFspatialMeanMedianStdev=list(DFspatialMeanMedianStdev=DFspatialMeanMedianStdev),
+                     LgcpModel=list(LgcpModel=Lgcp.model),
+                     DFPostFixed=list(DFPostFixed=Lgcp.model$marginals.fixed),
+                     DFPostHyperpar=list(DFPostHyperpar=Lgcp.model$marginals.hyperpar),
+                     Summary.fixed=list(Summary.fixed=Lgcp.model$summary.fixed),
+                     Summary.hyperpar=list(Summary.hyperpar=Lgcp.model$summary.hyperpar),
+                     SummaryInternalHyper=list(SummaryInternalHyper=Lgcp.model$internal.summary.hyperpar),
+                     SummaryCPO=list(SummaryCPO=na.omit(Lgcp.model$cpo$cpo)),
+                     DICmodel=list(DICmodel=data.frame(DIC=Lgcp.model$dic$family.dic, row.names=c("Point process"))))
+      
+      t2 <- Sys.time()
+      difftime(t2,t1, units="secs")
+      showNotification(ui=paste("The model has been fitted:", as.numeric(round(Lgcp.model$cpu.used[4])),
+                                "(LGCP model) and", as.numeric(round(difftime(t2,t1, units="secs"))),
+                                "(overall process) secs." ), duration = NULL)
+      # showNotification(ui=paste("The model's DIC is", Lgcperential.model$dic$dic), duration = NULL)
+      return(result)
+    })
+    
+    
+    dataggplotLgcpAbundanceMeanMedianStdevFit <- function(){
+      DF <- LgcpModelFit()$DFpredAbunMeanMedianStdev$DFpredAbunMeanMedianStdev
+      return(DF)
+    }
+    
+    DFLgcpAbundance <- reactive({
+      DF <- LgcpModelFit()$DFpredAbunMeanMedianStdev$DFpredAbunMeanMedianStdev
+      condition <- !(length(unique(DF[,1]))*length(unique(DF[,2]))==nrow(DF))&val()
+      if(condition){
+        grid <- expand.grid(seq(min(DF[,1]),max(DF[,1]), length.out=200),seq(min(DF[,2]),max(DF[,2]), length.out=200))
+        DFInter <- data.frame(Latitude=grid[,1],Longitude=grid[,2])
+        DFInter$Abundance.mean <- InterpolateIrrGrid(z=DF$Abundance.mean,loc=DF[,1:2], gridInter=grid)$DataInter$z
+        DFInter$Abundance.median <- InterpolateIrrGrid(z=DF$Abundance.median,loc=DF[,1:2], gridInter=grid)$DataInter$z
+        DFInter$Abundance.sd <- InterpolateIrrGrid(z=DF$Abundance.sd,loc=DF[,1:2], gridInter=grid)$DataInter$z
+        colnames(DFInter)[1:2] <- colnames(DF)[1:2]
+        DF <- DFInter
+      }
+      
+      return(DF)
+    })
+    
+    ggplotLgcpAbundanceMeanMedianStdevFit <- function(){
+      DF <- DFLgcpAbundance()
+      g1 <- ggplot(DF) + geom_tile(aes(x=DF[,1], y=DF[,2], fill=Abundance.mean)) +
+        scale_fill_viridis_c(option = "turbo") + theme_bw() + coord_fixed() + labs(fill="Values") +
+        xlab(colnames(DF)[1]) + ylab(colnames(DF)[1]) + ggtitle("Response predicted (mean)") +
+        theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
+      
+      g2 <- ggplot(DF) + geom_tile(aes(x=DF[,1], y=DF[,2], fill=Abundance.median)) +
+        scale_fill_viridis_c(option = "turbo") + theme_bw() + coord_fixed() + labs(fill="Values") +
+        xlab(colnames(DF)[1]) + ylab(colnames(DF)[1]) + ggtitle("Response predicted (median)") +
+        theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
+      
+      g3 <- ggplot(DF) + geom_tile(aes(x=DF[,1], y=DF[,2], fill=Abundance.sd))+
+        scale_fill_viridis_c(option = "turbo") + theme_bw() + coord_fixed() + labs(fill="Values") +
+        xlab(colnames(DF)[1]) + ylab(colnames(DF)[1]) + ggtitle("Response predicted (stdev.)") +
+        theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
+      
+      gt <- g1+g2+g3
+      
+      return(gt)
+    }
+    
+    downloadFile(
+      id = "ggplotLgcpAbundanceMeanMedianStdevFit",
+      logger = ss_userAction.Log,
+      filenameroot = "ggplotLgcpAbundanceMeanMedianStdevFit",
+      aspectratio  = 1,
+      downloadfxns = list(png  = ggplotLgcpAbundanceMeanMedianStdevFit,
+                          csv = dataggplotLgcpAbundanceMeanMedianStdevFit,
+                          txt = dataggplotLgcpAbundanceMeanMedianStdevFit)
+    )
+    
+    downloadablePlot(id = "ggplotLgcpAbundanceMeanMedianStdevFit",
+                     logger = ss_userAction.Log,
+                     filenameroot = "ggplotLgcpAbundanceMeanMedianStdevFit",
+                     aspectratio  = 1,
+                     downloadfxns = list(png = ggplotLgcpAbundanceMeanMedianStdevFit,
+                                         csv = dataggplotLgcpAbundanceMeanMedianStdevFit,
+                                         txt = dataggplotLgcpAbundanceMeanMedianStdevFit),
+                     visibleplot  = ggplotLgcpAbundanceMeanMedianStdevFit)
+    
+    
+    dataggplotLgcpSpatialMeanMedianStdev <- function(){
+      DF <- LgcpModelFit()$DFspatialMeanMedianStdev$DFspatialMeanMedianStdev
+      return(DF)
+    }
+    
+    ggplotLgcpSpatialMeanMedianStdev <- function(){
+      DF <- LgcpModelFit()$DFspatialMeanMedianStdev$DFspatialMeanMedianStdev
+      g1 <- ggplot(DF) + geom_tile(aes(x=DF[,1], y=DF[,2], fill=Spatial.mean)) +
+        scale_fill_viridis_c(option = "turbo") + theme_bw() + coord_fixed() + labs(fill="Values") +
+        xlab(colnames(DF)[1]) + ylab(colnames(DF)[1]) + ggtitle("Posterior spatial (mean)") +
+        theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
+      
+      g2 <- ggplot(DF) + geom_tile(aes(x=DF[,1], y=DF[,2], fill=Spatial.median)) +
+        scale_fill_viridis_c(option = "turbo") + theme_bw() + coord_fixed() + labs(fill="Values") +
+        xlab(colnames(DF)[1]) + ylab(colnames(DF)[1]) + ggtitle("Posterior spatial (median)") +
+        theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
+      
+      g3 <- ggplot(DF) + geom_tile(aes(x=DF[,1], y=DF[,2], fill=Spatial.stdev))+
+        scale_fill_viridis_c(option = "turbo") + theme_bw() + coord_fixed() + labs(fill="Values") +
+        xlab(colnames(DF)[1]) + ylab(colnames(DF)[1]) + ggtitle("Posterior spatial (stdev.)") +
+        theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
+      
+      gt <- g1+g2+g3
+      
+      return(gt)
+    }
+    
+    downloadFile(
+      id = "ggplotLgcpSpatialMeanMedianStdev",
+      logger = ss_userAction.Log,
+      filenameroot = "ggplotLgcpSpatialMeanMedianStdev",
+      aspectratio  = 1,
+      downloadfxns = list(png  = ggplotLgcpSpatialMeanMedianStdev,
+                          csv = dataggplotLgcpSpatialMeanMedianStdev,
+                          txt = dataggplotLgcpSpatialMeanMedianStdev)
+    )
+    
+    downloadablePlot(id = "ggplotLgcpSpatialMeanMedianStdev",
+                     logger = ss_userAction.Log,
+                     filenameroot = "ggplotLgcpSpatialMeanMedianStdev",
+                     aspectratio  = 1,
+                     downloadfxns = list(png=ggplotLgcpSpatialMeanMedianStdev,
+                                         csv = dataggplotLgcpSpatialMeanMedianStdev,
+                                         txt = dataggplotLgcpSpatialMeanMedianStdev),
+                     visibleplot  = ggplotLgcpSpatialMeanMedianStdev)
+    
+    dataggplotLgcpPredictorMeanMedianStdevFit <- function(){
+      DF <- LgcpModelFit()$DFpredictorMeanMedianStdev$DFpredictorMeanMedianStdev
+      return(DF)
+    }
+    
+    DFLgcpPredictor <- reactive({
+      DF <- LgcpModelFit()$DFpredictorMeanMedianStdev$DFpredictorMeanMedianStdev
+      condition <- !(length(unique(DF[,1]))*length(unique(DF[,2]))==nrow(DF))&val()
+      if(condition){
+        grid <- expand.grid(seq(min(DF[,1]),max(DF[,1]), length.out=200),seq(min(DF[,2]),max(DF[,2]), length.out=200))
+        DFInter <- data.frame(Latitude=grid[,1],Longitude=grid[,2])
+        DFInter$Predictor.mean <- InterpolateIrrGrid(z=DF$Predictor.mean,loc=DF[,1:2], gridInter=grid)$DataInter$z
+        DFInter$Predictor.median <- InterpolateIrrGrid(z=DF$Predictor.median,loc=DF[,1:2], gridInter=grid)$DataInter$z
+        DFInter$Predictor.stdev <- InterpolateIrrGrid(z=DF$Predictor.stdev,loc=DF[,1:2], gridInter=grid)$DataInter$z
+        colnames(DFInter)[1:2] <- colnames(DF)[1:2]
+        DF <- DFInter
+      }
+      
+      return(DF)
+    })
+    
+    ggplotLgcpPredictorMeanMedianStdevFit <- function(){
+      DF <- DFLgcpPredictor()
+      g1 <- ggplot(DF) + geom_tile(aes(x=DF[,1], y=DF[,2], fill=Predictor.mean)) +
+        scale_fill_viridis_c(option = "turbo") + theme_bw() + coord_fixed() + labs(fill="Values") +
+        xlab(colnames(DF)[1]) + ylab(colnames(DF)[1]) + ggtitle("Linear predictor (mean)") +
+        theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
+      
+      g2 <- ggplot(DF) + geom_tile(aes(x=DF[,1], y=DF[,2], fill=Predictor.median)) +
+        scale_fill_viridis_c(option = "turbo") + theme_bw() + coord_fixed() + labs(fill="Values") +
+        xlab(colnames(DF)[1]) + ylab(colnames(DF)[1]) + ggtitle("Linear predictor (median)") +
+        theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
+      
+      g3 <- ggplot(DF) + geom_tile(aes(x=DF[,1], y=DF[,2], fill=Predictor.stdev))+
+        scale_fill_viridis_c(option = "turbo") + theme_bw() + coord_fixed() + labs(fill="Values") +
+        xlab(colnames(DF)[1]) + ylab(colnames(DF)[1]) + ggtitle("Linear predictor (stdev.)") +
+        theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
+      
+      gt <- g1+g2+g3
+      
+      return(gt)
+    }
+    
+    downloadFile(
+      id = "ggplotLgcpPredictorMeanMedianStdevFit",
+      logger = ss_userAction.Log,
+      filenameroot = "ggplotLgcpPredictorMeanMedianStdevFit",
+      aspectratio  = 1,
+      downloadfxns = list(png  = ggplotLgcpPredictorMeanMedianStdevFit,
+                          csv = dataggplotLgcpPredictorMeanMedianStdevFit,
+                          txt = dataggplotLgcpPredictorMeanMedianStdevFit)
+    )
+    
+    downloadablePlot(id = "ggplotLgcpPredictorMeanMedianStdevFit",
+                     logger = ss_userAction.Log,
+                     filenameroot = "ggplotLgcpPredictorMeanMedianStdevFit",
+                     aspectratio  = 1,
+                     downloadfxns = list(png = ggplotLgcpPredictorMeanMedianStdevFit,
+                                         csv = dataggplotLgcpPredictorMeanMedianStdevFit,
+                                         txt = dataggplotLgcpPredictorMeanMedianStdevFit),
+                     visibleplot  = ggplotLgcpPredictorMeanMedianStdevFit)
+    
+    dataggplotLgcpFixParamFit <- function(){
+      DF <- as.data.frame(LgcpModelFit()$DFPostFixed$DFPostFixed)
+      return(DF)
+    }
+    
+    ggplotLgcpFixParamFit <- function(){
+      DF <- LgcpModelFit()$DFPostFixed$DFPostFixed
+      gl <- c()
+      for(i in 1:length(DF)){
+        assign(paste0("g",i),
+               ggplot(data=data.frame(x=DF[[i]][,1], y=DF[[i]][,2]), aes(x=x,y=y)) + geom_line() +
+                 theme_bw() + xlab(names(DF)[i]) + ylab(HTML(paste("Density f(",names(DF)[i],")"))) +
+                 ggtitle(names(DF)[i]) + theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
+        )
+        gl[i] <- paste0("g",i)
+      }
+      gt <- eval(parse(text=paste(gl, collapse="+")))
+      return(gt)
+    }
+    
+    downloadFile(
+      id = "ggplotLgcpFixParamFit",
+      logger = ss_userAction.Log,
+      filenameroot = "ggplotLgcpFixParamFit",
+      aspectratio  = 1,
+      downloadfxns = list(png  = ggplotLgcpFixParamFit,
+                          csv = dataggplotLgcpFixParamFit,
+                          txt = dataggplotLgcpFixParamFit)
+    )
+    
+    downloadablePlot(id = "ggplotLgcpFixParamFit",
+                     logger = ss_userAction.Log,
+                     filenameroot = "ggplotLgcpFixParamFit",
+                     aspectratio  = 1,
+                     downloadfxns = list(png = ggplotLgcpFixParamFit,
+                                         csv = dataggplotLgcpFixParamFit,
+                                         txt = dataggplotLgcpFixParamFit),
+                     visibleplot  = ggplotLgcpFixParamFit)
+    
+    
+    dataggplotLgcpHyperParamFit <- function(){
+      DF <- as.data.frame(LgcpModelFit()$DFPostHyperpar$DFPostHyperpar)
+      return(DF)
+    }
+    
+    ggplotLgcpHyperParamFit <- function(){
+      DF <- LgcpModelFit()$DFPostHyperpar$DFPostHyperpar
+      gl <- c()
+      for(i in 1:length(DF)){
+        nm <- strsplit(names(DF)[i], " ")[[1]]
+        if(nm[1]=="Precision"){
+          namesDFold <- names(DF)[i]
+          names(DF)[i] <- paste("Stdev.", paste(nm[-1], collapse=" "), collapse=" ")
+          assign(paste0("g",i), try(
+            ggplot(data=data.frame(x=inla.tmarginal(function(x) 1/x**0.5, DF[[i]])[,1],
+                                   y=inla.tmarginal(function(x) 1/x**0.5, DF[[i]])[,2]), aes(x=x,y=y)) + geom_line() +
+              theme_bw()+ xlab(names(DF)[i]) +
+              ylab(HTML(paste("Density f(",names(DF)[i],")"))) + ggtitle(names(DF)[i]) +
+              theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5)), silent=TRUE)
+          )
+          if(sum(class(eval(parse(text=paste0("g",i))))=="try-error")==1){
+            assign(paste0("g",i),
+                   ggplot(data=data.frame(x=inla.smarginal(marginal=DF[[i]])[[1]],
+                                          y=inla.smarginal(marginal=DF[[i]])[[2]]), aes(x=x,y=y)) + geom_line() +
+                     theme_bw()+ xlab(names(DF)[i]) +
+                     ylab(HTML(paste("Density f(",namesDFold,")"))) + ggtitle(namesDFold) +
+                     theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
+            )
+          }
+        } else{
+          assign(paste0("g",i),
+                 ggplot(data=data.frame(x=DF[[i]][,1], y=DF[[i]][,2]), aes(x=x,y=y)) + geom_line() +
+                   theme_bw()+ xlab(names(DF)[i]) + xlim(quantile(DF[[i]][,1], probs = c(0.025,0.975))) +
+                   ylab(HTML(paste("Density f(",names(DF)[i],")"))) + ggtitle(names(DF)[i]) +
+                   theme(plot.title=element_text(color = "black", size = 16, face = "bold", hjust = 0.5))
+          )
+        }
+        gl[i] <- paste0("g",i)
+      }
+      gt <- eval(parse(text=paste(gl, collapse="+")))
+      return(gt)
+    }
+    
+    downloadFile(
+      id = "ggplotLgcpHyperParamFit",
+      logger = ss_userAction.Log,
+      filenameroot = "ggplotLgcpHyperParamFit",
+      aspectratio  = 1,
+      downloadfxns = list(png  = ggplotLgcpHyperParamFit,
+                          csv = dataggplotLgcpHyperParamFit,
+                          txt = dataggplotLgcpHyperParamFit)
+    )
+    
+    downloadablePlot(id = "ggplotLgcpHyperParamFit",
+                     logger = ss_userAction.Log,
+                     filenameroot = "ggplotLgcpHyperParamFit",
+                     aspectratio  = 1,
+                     downloadfxns = list(png=ggplotLgcpHyperParamFit,
+                                         csv = dataggplotLgcpHyperParamFit,
+                                         txt = dataggplotLgcpHyperParamFit),
+                     visibleplot  = ggplotLgcpHyperParamFit)
+    
+    
+    tableLgcpModelFixedPar <- function(){
+      DF <- LgcpModelFit()$Summary.fixed$Summary.fixed %>%
+        mutate(across(where(is.numeric), round, digits = 2))
+    }
+    
+    downloadableTable("tableLgcpModelFixedPar",
+                      logger=ss_userAction.Log,
+                      filenameroot="tableLgcpModelFixedPar",
+                      downloaddatafxns=list(csv=tableLgcpModelFixedPar,
+                                            tsv=tableLgcpModelFixedPar),
+                      tabledata=tableLgcpModelFixedPar, rownames = TRUE,
+                      caption="Summary fixed parameters")
+    
+    tableLgcpModelHyperPar <- function(){
+      DF <- LgcpModelFit()$Summary.hyperpar$Summary.hyperpar %>%
+        mutate(across(where(is.numeric), round, digits = 2))
+    }
+    
+    downloadableTable("tableLgcpModelHyperPar",
+                      logger=ss_userAction.Log,
+                      filenameroot="tableLgcpModelHyperPar",
+                      downloaddatafxns=list(csv=tableLgcpModelHyperPar,
+                                            tsv=tableLgcpModelHyperPar),
+                      tabledata=tableLgcpModelHyperPar, rownames = TRUE,
+                      caption="Summary hyperparameters")
+    
+    tableLgcpModelInternalHyperPar <- function(){
+      DF <- LgcpModelFit()$SummaryInternalHyper$SummaryInternalHyper %>%
+        mutate(across(where(is.numeric), round, digits = 2))
+    }
+    
+    downloadableTable("tableLgcpModelInternalHyperPar",
+                      logger=ss_userAction.Log,
+                      filenameroot="tableLgcpModelInternalHyperPar",
+                      downloaddatafxns=list(csv=tableLgcpModelInternalHyperPar,
+                                            tsv=tableLgcpModelInternalHyperPar),
+                      tabledata=tableLgcpModelInternalHyperPar, rownames = TRUE,
+                      caption="Summary internal hyperparameters")
+    
+    dataLgcpDICtable <- function(){
+      DF <- LgcpModelFit()$DICmodel$DICmodel %>% # data.frame(DIC=LgcperentialModelFit()$DICmodel$DICmodel) %>%
+        mutate(across(where(is.numeric), round, digits = 2))
+      return(DF)
+    }
+    
+    downloadableTable("dataLgcpDICtable",
+                      logger=ss_userAction.Log,
+                      filenameroot="dataLgcpDICtable",
+                      downloaddatafxns=list(csv=dataLgcpDICtable,
+                                            tsv=dataLgcpDICtable),
+                      tabledata=dataLgcpDICtable, rownames = TRUE,
+                      caption="Model DIC")
+    
+    dataLgcpCPOtable <- function(){
+      CPO <- LgcpModelFit()$SummaryCPO$SummaryCPO
+      DF <- data.frame(n=length(CPO), mean=mean(CPO), median=median(CPO), stdev=sd(CPO),
+                       quantile2.5=quantile(CPO,probs=c(0.025,0.975))[1],
+                       quantile97.5=quantile(CPO,probs=c(0.025,0.975))[2]) %>%
+        mutate(across(where(is.numeric), round, digits = 2))
+      return(DF)
+    }
+    
+    downloadableTable("dataLgcpCPOtable",
+                      logger=ss_userAction.Log,
+                      filenameroot="dataLgcpCPOtable",
+                      downloaddatafxns=list(csv=dataLgcpCPOtable,
+                                            tsv=dataLgcpCPOtable),
+                      tabledata=dataLgcpCPOtable, rownames = FALSE,
+                      caption="Summary CPO")
+    
     # Server_PreferentialModelling_Section ----
     
     PrefCheckBoxNames <- function(){
@@ -2325,36 +3624,46 @@ shinyServer(function(input, output, session) {
     PrefMeshBase <- reactive({
       if(input$PrefDataSimulatedLoaded=="sim"){
         DFsample <- as.data.frame(Pref.sampling())
+        convexhull <- chull(DFsample[,1:2])
+        convexhull <- c(convexhull, convexhull[1])
         qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
-        mesh <- inla.mesh.2d(loc=cbind(DFsample[,1],DFsample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
-                             max.edge=c(qloc[1], qloc[2]))
+        mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
+                                max.edge=c(qloc[1], qloc[2]))
         sample <- DFsample
       } else if(input$PrefDataSimulatedLoaded=="load"){
         DFsample <- datareadSample()
         if(input$PrefRasterSPDE=="raster"){
           rasterSample <- datareadRaster()[sample(1:nrow(datareadRaster()), min(c(50,nrow(datareadRaster())))),1:2]
           qloc <- quantile(as.vector(dist(rasterSample)),probs=c(0.03,0.3))
-          mesh <- inla.mesh.2d(loc=cbind(rasterSample[,1],rasterSample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
-                               max.edge=c(qloc[1], qloc[2]))
+          convexhull <- chull(datareadRaster()[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=datareadRaster()[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
+                                  max.edge=c(qloc[1], qloc[2]))
           sample <- rasterSample
         } else if(input$PrefRasterSPDE=="solvecov"){
+          convexhull <- chull(rbind(DFsample[,1:2],datareadRaster()[,1:2]))
+          convexhull <- c(convexhull, convexhull[1])
           qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
-          mesh <- inla.mesh.2d(loc=cbind(DFsample[,1],DFsample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
-                               max.edge=c(qloc[1], qloc[2]))
+          mesh <- fm_mesh_2d_inla(loc.domain=rbind(DFsample[,1:2],datareadRaster()[,1:2])[convexhull,], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
+                                  max.edge=c(qloc[1], qloc[2]))
           sample <- DFsample
         }
       }
       result <- list(mesh=mesh, qloc=qloc, Sample=sample)
       return(result)
     })
-
+    
     PrefMesh <- eventReactive(input$buildPrefMesh, {
       if(input$PrefDataSimulatedLoaded=="sim"){
         DFsample <- as.data.frame(Pref.sampling())
       } else if(input$PrefDataSimulatedLoaded=="load"){
         DFsample <- as.data.frame(datareadSample())
+        DFraster <- try(datareadRaster(), silent=TRUE)
+        if(class(DFraster)!="try-error"){
+          DFsample <- rbind(DFsample[,1:2], DFraster[,1:2])
+        }
       }
-
+      
       interiorNonConvex <- function(x, condition, convex, resolution, file.read){
         if(condition=="interiorPrefMeshnonconvex"){
           interior <- inla.nonconvex.hull(points=x, convex=convex, resolution=resolution)
@@ -2368,7 +3677,7 @@ shinyServer(function(input, output, session) {
         } else{interior <- NULL}
         return(interior)
       }
-
+      
       boundaryNonConvex <- function(x, condition, convex, resolution, file.read){
         if(condition=="PrefMeshnonconvex"){
           boundary <- inla.nonconvex.hull(points=x, convex=convex, resolution=resolution)
@@ -2382,39 +3691,47 @@ shinyServer(function(input, output, session) {
         } else{boundary <- NULL}
         return(boundary)
       }
-
+      
       if(input$selectionPrefMesh=="qlocation"){
         if(input$PrefRasterSPDE=="raster"){
           rasterSample <- datareadRaster()[sample(1:nrow(datareadRaster()), min(c(50,nrow(datareadRaster())))),1:2]
           qloc <- quantile(as.vector(dist(rasterSample)),probs=c(ifelse(input$PrefCustomMesh,input$PrefMeshQloc,0.03),0.3))
-          mesh <- inla.mesh.2d(loc=cbind(rasterSample[,1],rasterSample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
-                               boundary=list(interiorNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$interiorPrefMesh, convex=input$interiorcurvaturePrefMesh, resolution=input$interiorresolutionPrefMesh, file.read=input$interiorshapefilePrefMesh),
-                                             boundaryNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$boundaryPrefMesh, convex=input$curvaturePrefMesh, resolution=input$resolutionPrefMesh, file.read=input$shapefilePrefMesh)))
+          convexhull <- chull(DFsample[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
+                                  boundary=list(interiorNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$interiorPrefMesh, convex=input$interiorcurvaturePrefMesh, resolution=input$interiorresolutionPrefMesh, file.read=input$interiorshapefilePrefMesh),
+                                                boundaryNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$boundaryPrefMesh, convex=input$curvaturePrefMesh, resolution=input$resolutionPrefMesh, file.read=input$shapefilePrefMesh)))
           sample <- rasterSample
         } else if(input$PrefRasterSPDE=="solvecov"){
           qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(ifelse(input$PrefCustomMesh,input$PrefMeshQloc,0.03),0.3))
-          mesh <- inla.mesh.2d(loc=cbind(DFsample[,1],DFsample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
-                               boundary=list(interiorNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$interiorPrefMesh, convex=input$interiorcurvaturePrefMesh, resolution=input$interiorresolutionPrefMesh, file.read=input$interiorshapefilePrefMesh),
-                                             boundaryNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$boundaryPrefMesh, convex=input$curvaturePrefMesh, resolution=input$resolutionPrefMesh, file.read=input$shapefilePrefMesh)))
+          convexhull <- chull(DFsample[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
+                                  boundary=list(interiorNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$interiorPrefMesh, convex=input$interiorcurvaturePrefMesh, resolution=input$interiorresolutionPrefMesh, file.read=input$interiorshapefilePrefMesh),
+                                                boundaryNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$boundaryPrefMesh, convex=input$curvaturePrefMesh, resolution=input$resolutionPrefMesh, file.read=input$shapefilePrefMesh)))
           sample <- DFsample
         }
       } else if(input$selectionPrefMesh=="edgelength"){
         if(input$PrefRasterSPDE=="raster"){
           rasterSample <- datareadRaster()
           qloc <- input$EdgeLengthPrefMesh
-          mesh <- inla.mesh.2d(loc=cbind(rasterSample[,1],rasterSample[,2]),max.edge=c(1,1.5)*input$EdgeLengthPrefMesh, cutoff=input$EdgeLengthPrefMesh/5, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
-                               boundary=list(interiorNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$interiorPrefMesh, convex=input$interiorcurvaturePrefMesh, resolution=input$interiorresolutionPrefMesh, file.read=input$interiorshapefilePrefMesh),
-                                             boundaryNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$boundaryPrefMesh, convex=input$curvaturePrefMesh, resolution=input$resolutionPrefMesh, file.read=input$shapefilePrefMesh)))
+          convexhull <- chull(DFsample[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], max.edge=c(1,1.5)*input$EdgeLengthPrefMesh, cutoff=input$EdgeLengthPrefMesh/5, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
+                                  boundary=list(interiorNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$interiorPrefMesh, convex=input$interiorcurvaturePrefMesh, resolution=input$interiorresolutionPrefMesh, file.read=input$interiorshapefilePrefMesh),
+                                                boundaryNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$boundaryPrefMesh, convex=input$curvaturePrefMesh, resolution=input$resolutionPrefMesh, file.read=input$shapefilePrefMesh)))
           sample <- rasterSample
         } else if(input$PrefRasterSPDE=="solvecov"){
           qloc <- input$EdgeLengthPrefMesh
-          mesh <- inla.mesh.2d(loc=cbind(DFsample[,1],DFsample[,2]),max.edge=c(1,1.5)*input$EdgeLengthPrefMesh,  cutoff=input$EdgeLengthPrefMesh/5, offset=c(-0.1, -0.2),
-                               boundary=list(interiorNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$interiorPrefMesh, convex=input$interiorcurvaturePrefMesh, resolution=input$interiorresolutionPrefMesh, file.read=input$interiorshapefilePrefMesh),
-                                             boundaryNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$boundaryPrefMesh, convex=input$curvaturePrefMesh, resolution=input$resolutionPrefMesh, file.read=input$shapefilePrefMesh)))
+          convexhull <- chull(DFsample[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], max.edge=c(1,1.5)*input$EdgeLengthPrefMesh,  cutoff=input$EdgeLengthPrefMesh/5, offset=c(-0.1, -0.2),
+                                  boundary=list(interiorNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$interiorPrefMesh, convex=input$interiorcurvaturePrefMesh, resolution=input$interiorresolutionPrefMesh, file.read=input$interiorshapefilePrefMesh),
+                                                boundaryNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$boundaryPrefMesh, convex=input$curvaturePrefMesh, resolution=input$resolutionPrefMesh, file.read=input$shapefilePrefMesh)))
           sample <- DFsample
         }
       }
-
+      
       result <- list(mesh=mesh, qloc=qloc, Sample=sample)
       return(result)
     })
@@ -2534,8 +3851,6 @@ shinyServer(function(input, output, session) {
       A.inf <- rbind(imat, lmat)
 
       ### Prediction of covariates ====
-
-      prediction.test <- "yes"
 
       List.covariates.inf <- list()
       List.covariates.mesh <- list()
@@ -2701,11 +4016,6 @@ shinyServer(function(input, output, session) {
         }
       }
 
-      test_List.covariates.inf <- List.covariates.inf
-      test_List.covariates.mesh <- List.covariates.mesh
-      test_List.covariates.pred <- List.covariates.pred
-      building.model.test <- "yes"
-
       ### Building the main model and stacks structure ====
 
       Inf.geo.effects.list <- list(
@@ -2769,7 +4079,6 @@ shinyServer(function(input, output, session) {
         } else{
           j <- which(variablesChosen[i]==variablesChosenUser)
           if(!is.character(DFsample[,variablesChosenUser[j]])){
-            # test.input <- eval(parse(text=paste0("input$PrefEffectCov",j)))
             if(eval(parse(text=paste0("input$PrefEffectCov",j)))=="rw1"|eval(parse(text=paste0("input$PrefEffectCov",j)))=="rw2"){
               if(eval(parse(text=paste0("input$PrefEffectCustomPrior",j)))=="custom"){
                 if(eval(parse(text=paste0("input$PrefEffectCovKindPrior",j)))=="pc"){
@@ -2795,7 +4104,6 @@ shinyServer(function(input, output, session) {
               } else{
                 formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model='",eval(parse(text=paste0("input$PrefEffectCov",j))),  "', constr=",eval(parse(text=paste0("input$PrefEffectCovConstr",j))),", scale.model=TRUE)"), sep=" + ")
               }
-              test.group <- "yes"
               group.cov <- inla.group(x=c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]], List.covariates.pred[[variablesChosenUser[j]]]), n=eval(parse(text=paste0("input$PrefEffectCovNodes",j))), method="cut")
 
               Inf.geo.effects.list[[2]][[variablesChosenUser[j]]] <- group.cov[seq_len(n + nv)]
@@ -2818,7 +4126,7 @@ shinyServer(function(input, output, session) {
             } else if(eval(parse(text=paste0("input$PrefEffectCov",j)))=="spde1"){
               Tot_cov <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]], List.covariates.pred[[variablesChosenUser[j]]])
               spde1_nodes <- seq(min(Tot_cov), max(Tot_cov), length.out=eval(parse(text=paste0("input$PrefEffectCovNodes",j))))
-              mesh1d <- inla.mesh.1d(loc=spde1_nodes)
+              mesh1d <- fm_mesh_1d(loc=spde1_nodes)
 
               if(eval(parse(text=paste0("input$PrefEffectCustomPrior",j)))=="custom"){
                 if(eval(parse(text=paste0("input$PrefEffectCovKindPrior",j)))=="pc"){
@@ -2840,14 +4148,10 @@ shinyServer(function(input, output, session) {
 
               spde1d.index <- inla.spde.make.index(name=paste0(variablesChosenUser[j]), n.spde=eval(parse(text=paste0("spde1d_",variablesChosenUser[j])))$n.spde)
               formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model=", paste0("spde1d_",variablesChosenUser[j]),  ")"), sep=" + ")
-              test.inf.effects1 <- "yes"
-
               Inf.geo.effects.list[[length(A_Inf.spde1)+3]] <- list()
               Pred.geo.effects.list[[length(A_Inf.spde1)+3]] <- list()
               Inf.geo.effects.list[[length(A_Inf.spde1)+3]][[variablesChosenUser[j]]] <- spde1d.index[[1]]
               Pred.geo.effects.list[[length(A_Inf.spde1)+3]][[variablesChosenUser[j]]] <- spde1d.index[[1]]
-
-              test.inf.effects2 <- "yes"
 
               if(length(UserComponentsPrefSharing)>0){
                 for(k in seq_along(UserComponentsPrefSharing)){
@@ -2867,8 +4171,6 @@ shinyServer(function(input, output, session) {
 
               A_Inf.spde1[[length(A_Inf.spde1)+1]] <- inla.spde.make.A(mesh=mesh1d, loc=Tot_cov[seq_len(nv+n)])
               A_Pred.spde1[[length(A_Pred.spde1)+1]] <- inla.spde.make.A(mesh=mesh1d, loc=Tot_cov[-seq_len(nv+n)])
-
-              test.inf.effects3 <- "yes"
 
             } else if(eval(parse(text=paste0("input$PrefEffectCov",j)))=="linear"){
               if(eval(parse(text=paste0("input$PrefEffectCustomPrior",j)))=="custom"){
@@ -2895,7 +4197,6 @@ shinyServer(function(input, output, session) {
                   }
                 }
               }
-              test.linear <- "yes"
             } else{
               showNotification(ui=paste("The effect of numerical covariates cannot possess an independent and identically distributed (iid) structure. If this is required, the variable values should be recorded as text, not as numerical input.."), duration = NULL)
             }
@@ -2906,8 +4207,6 @@ shinyServer(function(input, output, session) {
               idx.factor <- which(variablesChosenUser[j]==names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])[names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])%in%c(variablesChosenUser)])
 
               Inf.geo.effects.list[[2]][[variablesChosenUser[j]]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
-
-              test.iidfactor <- "yes"
 
               Pred.geo.effects.list[[2]][[variablesChosenUser[j]]] <- if(eval(parse(text=paste0("input$PrefKindPredictionFactorLevel",idx.factor)))=="reference"){
                 rep( eval(parse(text=paste0("input$PrefEffectCovFactorPred",idx.factor))), times=length(List.covariates.pred[[variablesChosenUser[j]]]))
@@ -2994,19 +4293,6 @@ shinyServer(function(input, output, session) {
         }
       }
 
-      tet.stack1 <- "yes"
-
-      testInf.geo.effects.list <- Inf.geo.effects.list
-      testInf.Prefs.effects.list <- Inf.Prefs.effects.list
-      testPred.geo.effects.list <- Pred.geo.effects.list
-
-      tet.stack2 <- "yes"
-
-      A.geo.pred <- A.geo.pred
-
-      A_Inf.spde1 <- A_Inf.spde1
-      A_Pred.spde1 <- A_Pred.spde1
-
       ### Stacks of the geostatistical, Pref and prediction layers ====
 
       ResponseVariable <- DFsample[,3]
@@ -3058,13 +4344,8 @@ shinyServer(function(input, output, session) {
         Total.stack <- inla.stack(Inf.geo.stack, Pred.geo.stack)
       }
 
-      testTotal.stack <- Total.stack
-
-      status.stacks <- "ok"
-
       ### INLA model ====
 
-      testFormula <- formula_mod
       formula_inla <- as.formula(formula_mod)
 
       if(input$autocustomPrefFamily=='custom'){
@@ -3112,7 +4393,6 @@ shinyServer(function(input, output, session) {
                              inla.mode=input$INLAModePref,
                              verbose=FALSE)
 
-      testxypred <- xy.pred
       index.pred <- inla.stack.index(Total.stack, "Prediction_geo")$data
       DFpred <- data.frame(Latitude=xy.pred[,1], Longitude=xy.pred[,2])
       DFpred$Abundance.mean <- Pref.model$summary.fitted.values[index.pred, "mean"]
@@ -3128,7 +4408,6 @@ shinyServer(function(input, output, session) {
 
       colnames(DFpredictorMeanMedianStdev)[1:2] <- colnames(DFsample)[1:2]
 
-      testResultsPred <- "yes"
       gridSpatial <- expand.grid(x=seq(min(DFpred[,1]), max(DFpred[,1]),length.out=input$dimPrefmap),
                                  y=seq(min(DFpred[,2]), max(DFpred[,2]), length.out=input$dimPrefmap))
       gridSpatial <- gridSpatial[which(!is.na(over(SpatialPoints(coords=gridSpatial),SpatialPolygons(Srl=list(Polygons(srl=list(Polygon(coords=mesh$loc[mesh$segm$int$idx[,1], 1:2])), ID="int")))))),1:2]
@@ -3154,11 +4433,10 @@ shinyServer(function(input, output, session) {
                       SummaryCPO=list(SummaryCPO=na.omit(Pref.model$cpo$cpo)),
                       DICmodel=list(DICmodel=data.frame(DIC=Pref.model$dic$family.dic, row.names=if(length(UserComponentsPrefSharing)>0){c("Geostatistical", "Point process")}else{c("Geostatistical")})))
 
-      testModelFit <- "yes"
       t2 <- Sys.time()
       difftime(t2,t1, units="secs")
       showNotification(ui=paste("The model has been fitted:", as.numeric(round(Pref.model$cpu.used[4])),
-                                "(abundance model) and", as.numeric(round(difftime(t2,t1, units="secs"))),
+                                "(Preferential model) and", as.numeric(round(difftime(t2,t1, units="secs"))),
                                 "(overall process) secs." ), duration = NULL)
       # showNotification(ui=paste("The model's DIC is", Preferential.model$dic$dic), duration = NULL)
       return(result)
@@ -3779,35 +5057,45 @@ shinyServer(function(input, output, session) {
     
     MixtureMeshBase <- reactive({
       if(input$MixtureDataSimulatedLoaded=="sim"){
-        DFsample <- Mixture.sampling()$MixtureSample
-        qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.015,0.3))
-        mesh <- inla.mesh.2d(loc=cbind(DFsample[,1],DFsample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.2), 
-                             max.edge=c(qloc[1], qloc[2]))
+        DFsample <- as.data.frame(Mixture.sampling())
+        convexhull <- chull(DFsample[,1:2])
+        convexhull <- c(convexhull, convexhull[1])
+        qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
+        mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
+                                max.edge=c(qloc[1], qloc[2]))
         sample <- DFsample
       } else if(input$MixtureDataSimulatedLoaded=="load"){
         DFsample <- datareadSample()
         if(input$MixtureRasterSPDE=="raster"){
           rasterSample <- datareadRaster()[sample(1:nrow(datareadRaster()), min(c(50,nrow(datareadRaster())))),1:2]
           qloc <- quantile(as.vector(dist(rasterSample)),probs=c(0.03,0.3))
-          mesh <- inla.mesh.2d(loc=cbind(rasterSample[,1],rasterSample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.2), 
-                               max.edge=c(qloc[1], qloc[2]))
+          convexhull <- chull(datareadRaster()[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=datareadRaster()[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
+                                  max.edge=c(qloc[1], qloc[2]))
           sample <- rasterSample
-          } else if(input$MixtureRasterSPDE=="solvecov"){
+        } else if(input$MixtureRasterSPDE=="solvecov"){
+          convexhull <- chull(rbind(DFsample[,1:2],datareadRaster()[,1:2]))
+          convexhull <- c(convexhull, convexhull[1])
           qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
-          mesh <- inla.mesh.2d(loc=cbind(DFsample[,1],DFsample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.2), 
-                               max.edge=c(qloc[1], qloc[2]))
+          mesh <- fm_mesh_2d_inla(loc.domain=rbind(DFsample[,1:2],datareadRaster()[,1:2])[convexhull,], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
+                                  max.edge=c(qloc[1], qloc[2]))
           sample <- DFsample
-          }
         }
+      }
       result <- list(mesh=mesh, qloc=qloc, Sample=sample)
       return(result)
     })
     
     MixtureMesh <- eventReactive(input$buildMixtureMesh, {
       if(input$MixtureDataSimulatedLoaded=="sim"){
-        DFsample <- as.data.frame(Mixture.sampling()$MixtureSample)
+        DFsample <- as.data.frame(Mixture.sampling())
       } else if(input$MixtureDataSimulatedLoaded=="load"){
         DFsample <- as.data.frame(datareadSample())
+        DFraster <- try(datareadRaster(), silent=TRUE)
+        if(class(DFraster)!="try-error"){
+          DFsample <- rbind(DFsample[,1:2], DFraster[,1:2])
+        }
       }
       
       interiorNonConvex <- function(x, condition, convex, resolution, file.read){
@@ -3842,30 +5130,38 @@ shinyServer(function(input, output, session) {
         if(input$MixtureRasterSPDE=="raster"){
           rasterSample <- datareadRaster()[sample(1:nrow(datareadRaster()), min(c(50,nrow(datareadRaster())))),1:2]
           qloc <- quantile(as.vector(dist(rasterSample)),probs=c(ifelse(input$MixtureCustomMesh,input$MixtureMeshQloc,0.03),0.3))
-          mesh <- inla.mesh.2d(loc=cbind(rasterSample[,1],rasterSample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
-                               boundary=list(interiorNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$interiorMixtureMesh, convex=input$interiorcurvatureMixtureMesh, resolution=input$interiorresolutionMixtureMesh, file.read=input$interiorshapefileMixtureMesh), 
-                                             boundaryNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$boundaryMixtureMesh, convex=input$curvatureMixtureMesh, resolution=input$resolutionMixtureMesh, file.read=input$shapefileMixtureMesh)))
+          convexhull <- chull(DFsample[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
+                                  boundary=list(interiorNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$interiorMixtureMesh, convex=input$interiorcurvatureMixtureMesh, resolution=input$interiorresolutionMixtureMesh, file.read=input$interiorshapefileMixtureMesh),
+                                                boundaryNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$boundaryMixtureMesh, convex=input$curvatureMixtureMesh, resolution=input$resolutionMixtureMesh, file.read=input$shapefileMixtureMesh)))
           sample <- rasterSample
         } else if(input$MixtureRasterSPDE=="solvecov"){
           qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(ifelse(input$MixtureCustomMesh,input$MixtureMeshQloc,0.03),0.3))
-          mesh <- inla.mesh.2d(loc=cbind(DFsample[,1],DFsample[,2]), cutoff = qloc[1]/2, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
-                               boundary=list(interiorNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$interiorMixtureMesh, convex=input$interiorcurvatureMixtureMesh, resolution=input$interiorresolutionMixtureMesh, file.read=input$interiorshapefileMixtureMesh), 
-                                             boundaryNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$boundaryMixtureMesh, convex=input$curvatureMixtureMesh, resolution=input$resolutionMixtureMesh, file.read=input$shapefileMixtureMesh)))
+          convexhull <- chull(DFsample[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
+                                  boundary=list(interiorNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$interiorMixtureMesh, convex=input$interiorcurvatureMixtureMesh, resolution=input$interiorresolutionMixtureMesh, file.read=input$interiorshapefileMixtureMesh),
+                                                boundaryNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$boundaryMixtureMesh, convex=input$curvatureMixtureMesh, resolution=input$resolutionMixtureMesh, file.read=input$shapefileMixtureMesh)))
           sample <- DFsample
         }
       } else if(input$selectionMixtureMesh=="edgelength"){
         if(input$MixtureRasterSPDE=="raster"){
           rasterSample <- datareadRaster()
           qloc <- input$EdgeLengthMixtureMesh
-          mesh <- inla.mesh.2d(loc=cbind(rasterSample[,1],rasterSample[,2]),max.edge=c(1,1.5)*input$EdgeLengthMixtureMesh, cutoff=input$EdgeLengthMixtureMesh/5, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
-                               boundary=list(interiorNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$interiorMixtureMesh, convex=input$interiorcurvatureMixtureMesh, resolution=input$interiorresolutionMixtureMesh, file.read=input$interiorshapefileMixtureMesh), 
-                                             boundaryNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$boundaryMixtureMesh, convex=input$curvatureMixtureMesh, resolution=input$resolutionMixtureMesh, file.read=input$shapefileMixtureMesh)))
+          convexhull <- chull(DFsample[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], max.edge=c(1,1.5)*input$EdgeLengthMixtureMesh, cutoff=input$EdgeLengthMixtureMesh/5, offset=c(-0.1, -0.2), max.edge=c(qloc[1], qloc[2]),
+                                  boundary=list(interiorNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$interiorMixtureMesh, convex=input$interiorcurvatureMixtureMesh, resolution=input$interiorresolutionMixtureMesh, file.read=input$interiorshapefileMixtureMesh),
+                                                boundaryNonConvex(x=as.matrix(rasterSample[,1:2]), condition=input$boundaryMixtureMesh, convex=input$curvatureMixtureMesh, resolution=input$resolutionMixtureMesh, file.read=input$shapefileMixtureMesh)))
           sample <- rasterSample
         } else if(input$MixtureRasterSPDE=="solvecov"){
           qloc <- input$EdgeLengthMixtureMesh
-          mesh <- inla.mesh.2d(loc=cbind(DFsample[,1],DFsample[,2]),max.edge=c(1,1.5)*input$EdgeLengthMixtureMesh,  cutoff=input$EdgeLengthMixtureMesh/5, offset=c(-0.1, -0.2),
-                               boundary=list(interiorNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$interiorMixtureMesh, convex=input$interiorcurvatureMixtureMesh, resolution=input$interiorresolutionMixtureMesh, file.read=input$interiorshapefileMixtureMesh),
-                                             boundaryNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$boundaryMixtureMesh, convex=input$curvatureMixtureMesh, resolution=input$resolutionMixtureMesh, file.read=input$shapefileMixtureMesh)))
+          convexhull <- chull(DFsample[,1:2])
+          convexhull <- c(convexhull, convexhull[1])
+          mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], max.edge=c(1,1.5)*input$EdgeLengthMixtureMesh,  cutoff=input$EdgeLengthMixtureMesh/5, offset=c(-0.1, -0.2),
+                                  boundary=list(interiorNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$interiorMixtureMesh, convex=input$interiorcurvatureMixtureMesh, resolution=input$interiorresolutionMixtureMesh, file.read=input$interiorshapefileMixtureMesh),
+                                                boundaryNonConvex(x=as.matrix(DFsample[,1:2]), condition=input$boundaryMixtureMesh, convex=input$curvatureMixtureMesh, resolution=input$resolutionMixtureMesh, file.read=input$shapefileMixtureMesh)))
           sample <- DFsample
         }
       }
@@ -3993,8 +5289,6 @@ shinyServer(function(input, output, session) {
       A.inf <- rbind(imat, lmat) 
       
       ### Prediction of covariates ====
-      
-      prediction.test <- "yes"
       
       List.covariates.inf <- list()
       List.covariates.mesh <- list()
@@ -4160,11 +5454,6 @@ shinyServer(function(input, output, session) {
       }
       }
       
-      test_List.covariates.inf <- List.covariates.inf
-      test_List.covariates.mesh <- List.covariates.mesh
-      test_List.covariates.pred <- List.covariates.pred
-      building.model.test <- "yes" 
-      
       ### Building the main model and stacks structure ====
       
       Inf.geo.effects.list <- list(
@@ -4235,7 +5524,6 @@ shinyServer(function(input, output, session) {
         } else{
           j <- which(variablesChosen[i]==variablesChosenUser)
           if(!is.character(DFsample[,variablesChosenUser[j]])){
-            # test.input <- eval(parse(text=paste0("input$MixtureEffectCov",j)))
             if(eval(parse(text=paste0("input$MixtureEffectCov",j)))=="rw1"|eval(parse(text=paste0("input$MixtureEffectCov",j)))=="rw2"){
               if(eval(parse(text=paste0("input$MixtureEffectCustomPrior",j)))=="custom"){
                 if(eval(parse(text=paste0("input$MixtureEffectCovKindPrior",j)))=="pc"){
@@ -4261,7 +5549,6 @@ shinyServer(function(input, output, session) {
               } else{
                 formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model='",eval(parse(text=paste0("input$MixtureEffectCov",j))),  "', constr=",eval(parse(text=paste0("input$MixtureEffectCovConstr",j))),", scale.model=TRUE)"), sep=" + ")
               }
-              test.group <- "yes"
               group.cov <- inla.group(x=c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]], List.covariates.pred[[variablesChosenUser[j]]]), n=eval(parse(text=paste0("input$MixtureEffectCovNodes",j))), method="cut")
               
               Inf.geo.effects.list[[2]][[variablesChosenUser[j]]] <- group.cov[seq_len(n + nv)]
@@ -4284,7 +5571,7 @@ shinyServer(function(input, output, session) {
             } else if(eval(parse(text=paste0("input$MixtureEffectCov",j)))=="spde1"){
               Tot_cov <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]], List.covariates.pred[[variablesChosenUser[j]]])
               spde1_nodes <- seq(min(Tot_cov), max(Tot_cov), length.out=eval(parse(text=paste0("input$MixtureEffectCovNodes",j))))
-              mesh1d <- inla.mesh.1d(loc=spde1_nodes)
+              mesh1d <- fm_mesh_1d(loc=spde1_nodes)
               
               if(eval(parse(text=paste0("input$MixtureEffectCustomPrior",j)))=="custom"){
                 if(eval(parse(text=paste0("input$MixtureEffectCovKindPrior",j)))=="pc"){
@@ -4306,14 +5593,11 @@ shinyServer(function(input, output, session) {
               
               spde1d.index <- inla.spde.make.index(name=paste0(variablesChosenUser[j]), n.spde=eval(parse(text=paste0("spde1d_",variablesChosenUser[j])))$n.spde)
               formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model=", paste0("spde1d_",variablesChosenUser[j]),  ")"), sep=" + ")
-              test.inf.effects1 <- "yes"
-              
+
               Inf.geo.effects.list[[length(A_Inf.spde1)+3]] <- list()
               Pred.geo.effects.list[[length(A_Inf.spde1)+3]] <- list()
               Inf.geo.effects.list[[length(A_Inf.spde1)+3]][[variablesChosenUser[j]]] <- spde1d.index[[1]]
               Pred.geo.effects.list[[length(A_Inf.spde1)+3]][[variablesChosenUser[j]]] <- spde1d.index[[1]]
-              
-              test.inf.effects2 <- "yes"
               
               if(length(UserComponentsMixtureSharing)>0){
                 for(k in seq_along(UserComponentsMixtureSharing)){
@@ -4333,8 +5617,6 @@ shinyServer(function(input, output, session) {
 
               A_Inf.spde1[[length(A_Inf.spde1)+1]] <- inla.spde.make.A(mesh=mesh1d, loc=Tot_cov[seq_len(nv+n)])
               A_Pred.spde1[[length(A_Pred.spde1)+1]] <- inla.spde.make.A(mesh=mesh1d, loc=Tot_cov[-seq_len(nv+n)])
-              
-              test.inf.effects3 <- "yes"
               
             } else if(eval(parse(text=paste0("input$MixtureEffectCov",j)))=="linear"){
               if(eval(parse(text=paste0("input$MixtureEffectCustomPrior",j)))=="custom"){
@@ -4361,7 +5643,6 @@ shinyServer(function(input, output, session) {
                   }
                 }
               }
-              test.linear <- "yes"
             } else{
               showNotification(ui=paste("The effect of numerical covariates cannot possess an independent and identically distributed (iid) structure. If this is required, the variable values should be recorded as text, not as numerical input.."), duration = NULL)
             }
@@ -4372,8 +5653,6 @@ shinyServer(function(input, output, session) {
               idx.factor <- which(variablesChosenUser[j]==names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])[names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])%in%c(variablesChosenUser)])
               
               Inf.geo.effects.list[[2]][[variablesChosenUser[j]]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
-              
-              test.iidfactor <- "yes" 
               
               Pred.geo.effects.list[[2]][[variablesChosenUser[j]]] <- if(eval(parse(text=paste0("input$MixtureKindPredictionFactorLevel",idx.factor)))=="reference"){
                 rep( eval(parse(text=paste0("input$MixtureEffectCovFactorPred",idx.factor))), times=length(List.covariates.pred[[variablesChosenUser[j]]]))
@@ -4460,27 +5739,9 @@ shinyServer(function(input, output, session) {
         }
       }
       
-      tet.stack1 <- "yes"
-      
-      testInf.geo.effects.list <- Inf.geo.effects.list
-      testInf.Mixtures.effects.list <- Inf.Mixtures.effects.list
-      testPred.geo.effects.list <- Pred.geo.effects.list
-      
-      tet.stack2 <- "yes"
-      
-      A.geo.pred <- A.geo.pred
-
-      A_Inf.spde1 <- A_Inf.spde1
-      A_Pred.spde1 <- A_Pred.spde1
-      
       ### Stacks of the geostatistical, mixtures and prediction layers ====
       
       ResponseVariable <- DFsample[,3]
-      # if(input$MixtureDataSimulatedLoaded=="sim"){
-      #   ResponseVariable <- DFsample[,4]
-      # } else{
-      #   ResponseVariable <- DFsample[,3]
-      # }
       
       A_inf_tot <- c(A.inf,1)
       if(length(A_Inf.spde1)>0){
@@ -4528,14 +5789,9 @@ shinyServer(function(input, output, session) {
       } else{
         Total.stack <- inla.stack(Inf.geo.stack, Pred.geo.stack)
       }
-
-      testTotal.stack <- Total.stack
-      
-      status.stacks <- "ok"
       
       ### INLA model ====
       
-      testFormula <- formula_mod
       formula_inla <- as.formula(formula_mod)
 
       if(input$autocustomMixtureFamily=='custom'){
@@ -4583,7 +5839,6 @@ shinyServer(function(input, output, session) {
                             inla.mode=input$INLAModeMixture,
                             verbose=FALSE)
 
-      testxypred <- xy.pred
       index.pred <- inla.stack.index(Total.stack, "Prediction_geo")$data
       DFpred <- data.frame(Latitude=xy.pred[,1], Longitude=xy.pred[,2])
       DFpred$Abundance.mean <- Mixture.model$summary.fitted.values[index.pred, "mean"]
@@ -4599,7 +5854,6 @@ shinyServer(function(input, output, session) {
       
       colnames(DFpredictorMeanMedianStdev)[1:2] <- colnames(DFsample)[1:2]
       
-      testResultsPred <- "yes"
       gridSpatial <- expand.grid(x=seq(min(DFpred[,1]), max(DFpred[,1]),length.out=input$dimMixturemap),
                                  y=seq(min(DFpred[,2]), max(DFpred[,2]), length.out=input$dimMixturemap))
       gridSpatial <- gridSpatial[which(!is.na(over(SpatialPoints(coords=gridSpatial),SpatialPolygons(Srl=list(Polygons(srl=list(Polygon(coords=mesh$loc[mesh$segm$int$idx[,1], 1:2])), ID="int")))))),1:2]          
@@ -4625,11 +5879,10 @@ shinyServer(function(input, output, session) {
                      SummaryCPO=list(SummaryCPO=na.omit(Mixture.model$cpo$cpo)),
                      DICmodel=list(DICmodel=data.frame(DIC=Mixture.model$dic$family.dic, row.names=if(length(UserComponentsMixtureSharing)>0){c("Geostatistical", "Point process")}else{c("Geostatistical")})))
 
-      testModelFit <- "yes"
       t2 <- Sys.time()
       difftime(t2,t1, units="secs")
       showNotification(ui=paste("The model has been fitted:", as.numeric(round(Mixture.model$cpu.used[4])),
-                                "(abundance model) and", as.numeric(round(difftime(t2,t1, units="secs"))),
+                                "(Mixture model) and", as.numeric(round(difftime(t2,t1, units="secs"))),
                                 "(overall process) secs." ), duration = NULL)
       # showNotification(ui=paste("The model's DIC is", Preferential.model$dic$dic), duration = NULL)
       return(result)
