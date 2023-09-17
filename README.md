@@ -21,6 +21,7 @@ install.packages("INLA",
   repos=c(getOption("repos"),INLA="https://inla.r-inla-download.org/R/stable"), 
   dep=TRUE)
 install.packages("inlabru")
+install.packages("fmesher")
 install.packages("ggplot2")
 install.packages("lattice")
 install.packages("rintrojs")
