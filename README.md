@@ -182,7 +182,7 @@ The second model we consider is the log-Gaussian Cox Process (LGCP) model. This 
 $$
 \begin{array}{c}
 s_i \sim LGCP(s_i|\eta_{Pi}, \boldsymbol\theta_P), \\
-\log(\lambda_i) = \eta_i = \beta + \mathbf{X_i} \boldsymbol\beta + \sum_j^m f_j(\mathbf{z}_j) + u_i, \\
+\log(\lambda_i) = \eta_i = \beta + \mathbf{X_i} \boldsymbol\beta + \sum_{j=1}^{m} f_j(\mathbf{z}_j) + u_i, \\
 \end{array}
 $$
 
