@@ -2,7 +2,7 @@
 
 This application is designed for the resolution of spatial models using the Bayesian paradigm and the INLA methodology. Therefore, since it has been designed for all kinds of users, we will explain in some detail its functionality and its main sections. <!--Additionally, in this *README* file, the theoretical foundations underlying the application will be briefly presented. Which means, a summary of Bayesian inference and the foundaments of the INLA methodology.-->
 
-To run this app you can use the function `runGitHub(repo="ShinyAppSpatialModelFeedback", username="MarioFigueiraP", ref="latest)` from `library(shiny)`.
+To run this app you can use the function `runGitHub(repo="ShinyAppSpatialModelFeedback", username="MarioFigueiraP", ref="latest")` from `library(shiny)`.
 
 <h1> App dependencies </h1>
 
