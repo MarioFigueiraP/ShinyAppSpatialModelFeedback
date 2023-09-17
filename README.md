@@ -177,33 +177,29 @@ Once the fit starts a pop-up message will apear, as well as when the fitting pro
 
 <h3> 3.2 LGCP Model </h3>
 
-The second model is a log-Gaussian Cox Process model, in which we assume that some process are connected, at least we will assume that the spatial effect is linked. It means that the geostatistical process, which "generates" our variable of interest $y_i\sim f(y_i|\eta_{Gi},\boldsymbol\theta_G)$, and the point process, which "generates" the locations $s_i\sim LGCP(s_i|\eta_{Pi},\boldsymbol\theta_P)$, have bounded thier spatial effects $\mathbf{u}(\rho,\sigma)$. It can be clarified by showing the model, as it was done for the independent model:
+The second model we consider is the log-Gaussian Cox Process (LGCP) model. This model facilitates the assessment of the process that generates the locations of a sample. If we represent the locations as $\mathbf{s}=\cup_{i=1}^n s_i$, they can be modeled as a non-homogeneous Poisson process with a Gaussian latent and Cox structure; which implies certain particularities in the construction of the model [Janine et al. (2012)](https://projecteuclid.org/journals/annals-of-applied-statistics/volume-6/issue-4/A-toolbox-for-fitting-complex-spatial-point-process-models-using/10.1214/11-AOAS530.full) and [Simpson et al. (2016)](https://academic.oup.com/biomet/article/103/1/49/2389990). The specific positions of observed events are influenced by an underlying spatial process, typically represented through an intensity function, $\lambda(\mathbf{s})$. This function denotes the average event count per spatial unit and can be shaped by various factors, including covariates and other random effects, whether structured or unstructured:
 
 $$
 \begin{array}{c}
-y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta_G), \\
 s_i \sim LGCP(s_i|\eta_{Pi}, \boldsymbol\theta_P), \\
-g(\mu_i) = \eta_{Gi} = \beta_{G0} + \mathbf{X_i} \boldsymbol\beta_G + u_i, \\
-\log(\lambda_i) = \eta_i' = \beta_{P0} + \mathbf{X_i} \boldsymbol\beta_P + \alpha \cdot u_i, \\
+\log(\lambda_i) = \eta_i = \beta + \mathbf{X_i} \boldsymbol\beta + \sum_j^m f_j(\mathbf{z}_j) + u_i, \\
 \end{array}
 $$
 
-where we have defined the observation and sample latent structures (geostatistical and point process layer). The latent element distributions and the hyperpameter prior distributions follow the same structure as for the independent model 
+where we have defined the latent structure for the intensity function $\lambda(\mathbf{s})$, with linear effects $(\beta_0,\boldsymbol\beta)$, non-linear effects $(f_j(\mathbf{z}_j)) and the spatial effect $u_i$ with Matérn covariance function. The latent element distributions and the hyperpameter prior distributions follow the same structure as for the independent model 
 
 $$
 \begin{array}{c}
-\boldsymbol\beta \sim N(\mathbf{0}, \Sigma_\beta) \\; : \\; \Sigma_{\beta}\sim diag(\sqrt{1000}, ..., \sqrt{1000}), \\; \boldsymbol\beta=\\{\boldsymbol\beta_G\cup\boldsymbol\beta_P\\}, \\
+\boldsymbol\beta \sim N(\mathbf{0}, \Sigma_\beta) \\; : \\; \Sigma_{\beta}\sim diag(\sqrt{1000}, ..., \sqrt{1000}),\\
 \mathbf{u} \sim N(\mathbf{0}, \Sigma(\rho, \sigma)),\\
 \rho \sim pc_{\rho}(\rho_0, p_{\rho}) \\; : \\; pc_{\rho}(\rho_0, p_{\rho})\equiv \\{ P(\rho < \rho_0)=p_{\rho}\\},\\
 \rho_0 = size/2, \\; p_{\rho} = 1/2,\\
 \sigma \sim pc_{\sigma}(\sigma_{0}, p_{\sigma}) \\; : \\; pc_{\sigma}(\sigma_0, p_{\sigma})\equiv \\{ P(\sigma > \sigma_0)=p_{\sigma}\\},\\
-\sigma_0 = 1, \\; p_{\sigma} = 1/2,\\
-\alpha \sim N(0,0.001),\\
-\log(\tau) \sim log-Gamma(1, 0.00005).
+\sigma_0 = 1, \\; p_{\sigma} = 1/2.
 \end{array}
 $$
 
-Most of the elements are identical to those shown for the independent model, with the exception that there are two likelihoods and that the spatial effect is linked between them. The main different is that we can set wich elements share their effects though the geostatistical and point process layer. Therefore, the configuration options for this section are essentially the same as for the previous one, but in the <i>Advanced INLA configuration</i> the user can specify the values for the sharing effect prior distributions.
+Most of the elements are identical to those of the stand-alone model, except that it is a non-homogeneous Poisson model. Therefore, the configuration options for this section are essentially the same as for the previous one.
 
 <h3> 3.3 Preferential Model </h3>
 
