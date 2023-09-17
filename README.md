@@ -186,7 +186,7 @@ s_i \sim LGCP(s_i|\eta_{Pi}, \boldsymbol\theta_P), \\
 \end{array}
 $$
 
-where we have defined the latent structure for the intensity function $\lambda(\mathbf{s})$, with linear effects $(\beta_0,\boldsymbol\beta)$, non-linear effects $(f_j(\mathbf{z}_j)) and the spatial effect $u_i$ with Matérn covariance function. The latent element distributions and the hyperpameter prior distributions follow the same structure as for the independent model 
+where we have defined the latent structure for the intensity function $\lambda(\mathbf{s})$, with linear effects $(\beta_0,\boldsymbol\beta)$, non-linear effects $f_j(\mathbf{z}_j)$ and the spatial effect $u_i$ with Matérn covariance function. The latent element distributions and the hyperpameter prior distributions follow the same structure as for the independent model 
 
 $$
 \begin{array}{c}
