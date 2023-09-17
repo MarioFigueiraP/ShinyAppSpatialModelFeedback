@@ -2,7 +2,7 @@
 
 This application is designed for the resolution of spatial models using the Bayesian paradigm and the INLA methodology. Therefore, since it has been designed for all kinds of users, we will explain in some detail its functionality and its main sections. <!--Additionally, in this *README* file, the theoretical foundations underlying the application will be briefly presented. Which means, a summary of Bayesian inference and the foundaments of the INLA methodology.-->
 
-To run this app you can use the function `runGitHub("ShinyAppSpatialModelFeedback", "MarioFigueiraP")` from `library(shiny)`.
+To run this app you can use the function `runGitHub(repo="ShinyAppSpatialModelFeedback", username="MarioFigueiraP", ref="latest")` from `library(shiny)`.
 
 <h1> App dependencies </h1>
 
@@ -21,6 +21,7 @@ install.packages("INLA",
   repos=c(getOption("repos"),INLA="https://inla.r-inla-download.org/R/stable"), 
   dep=TRUE)
 install.packages("inlabru")
+install.packages("fmesher")
 install.packages("ggplot2")
 install.packages("lattice")
 install.packages("rintrojs")
@@ -51,11 +52,12 @@ flowchart TD
     B[Data Simulation]-->D[Model Analysis]
     C[Upload Data]-->D[Model Analysis]
     D[Model Analysis]-.->E[Independent Model]
-    D[Model Analysis]-.->F[Preferential Model]
-    D[Model Analysis]-.->G[Mixture Model] 
-    E-- Feedback --> H[Alternative Model]
-    F-- Feedback --> I[Alternative Model]
+    D[Model Analysis]-.->F[LGCP Model]
+    D[Model Analysis]-.->G[Preferential Model]
+    D[Model Analysis]-.->H[Mixture Model] 
+    E-- Feedback --> I[Alternative Model]
     G-- Feedback --> J[Alternative Model]
+    H-- Feedback --> K[Alternative Model]
 ```
 
 <h2> 1. Data Simulation </h2>
@@ -173,9 +175,9 @@ Therefore, to perform the fit there are several configuration item which the use
 
 Once the fit starts a pop-up message will apear, as well as when the fitting process is finished, showing the time it has taken. Afterwards, we will get some output results: predictive maps of the response variable and spatial effect over the study region, parameter and hyperparameters density plots, summary tables of its characteristic values and the DIC and CPO of the fit.
 
-<h3> 3.2 Preferential Model </h3>
+<h3> 3.2 LGCP Model </h3>
 
-The second model is a joint model, in which we assume that some process are connected, at least we will assume that the spatial effect is linked. It means that the geostatistical process, which "generates" our variable of interest $y_i\sim f(y_i|\eta_{Gi},\boldsymbol\theta_G)$, and the point process, which "generates" the locations $s_i\sim LGCP(s_i|\eta_{Pi},\boldsymbol\theta_P)$, have bounded thier spatial effects $\mathbf{u}(\rho,\sigma)$. It can be clarified by showing the model, as it was done for the independent model:
+The second model is a log-Gaussian Cox Process model, in which we assume that some process are connected, at least we will assume that the spatial effect is linked. It means that the geostatistical process, which "generates" our variable of interest $y_i\sim f(y_i|\eta_{Gi},\boldsymbol\theta_G)$, and the point process, which "generates" the locations $s_i\sim LGCP(s_i|\eta_{Pi},\boldsymbol\theta_P)$, have bounded thier spatial effects $\mathbf{u}(\rho,\sigma)$. It can be clarified by showing the model, as it was done for the independent model:
 
 $$
 \begin{array}{c}
@@ -203,7 +205,37 @@ $$
 
 Most of the elements are identical to those shown for the independent model, with the exception that there are two likelihoods and that the spatial effect is linked between them. The main different is that we can set wich elements share their effects though the geostatistical and point process layer. Therefore, the configuration options for this section are essentially the same as for the previous one, but in the <i>Advanced INLA configuration</i> the user can specify the values for the sharing effect prior distributions.
 
-<h3> 3.4 Mixture Model </h3>
+<h3> 3.3 Preferential Model </h3>
+
+The third model is a joint model, in which we assume that some process are connected, at least we will assume that the spatial effect is linked. It means that the geostatistical process, which "generates" our variable of interest $y_i\sim f(y_i|\eta_{Gi},\boldsymbol\theta_G)$, and the point process, which "generates" the locations $s_i\sim LGCP(s_i|\eta_{Pi},\boldsymbol\theta_P)$, have bounded thier spatial effects $\mathbf{u}(\rho,\sigma)$. It can be clarified by showing the model, as it was done for the independent model:
+
+$$
+\begin{array}{c}
+y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta_G), \\
+s_i \sim LGCP(s_i|\eta_{Pi}, \boldsymbol\theta_P), \\
+g(\mu_i) = \eta_{Gi} = \beta_{G0} + \mathbf{X_i} \boldsymbol\beta_G + u_i, \\
+\log(\lambda_i) = \eta_i' = \beta_{P0} + \mathbf{X_i} \boldsymbol\beta_P + \alpha \cdot u_i, \\
+\end{array}
+$$
+
+where we have defined the observation and sample latent structures (geostatistical and point process layer). The latent element distributions and the hyperpameter prior distributions follow the same structure as for the independent model 
+
+$$
+\begin{array}{c}
+\boldsymbol\beta \sim N(\mathbf{0}, \Sigma_\beta) \\; : \\; \Sigma_{\beta}\sim diag(\sqrt{1000}, ..., \sqrt{1000}), \\; \boldsymbol\beta=\\{\boldsymbol\beta_G\cup\boldsymbol\beta_P\\}, \\
+\mathbf{u} \sim N(\mathbf{0}, \Sigma(\rho, \sigma)),\\
+\rho \sim pc_{\rho}(\rho_0, p_{\rho}) \\; : \\; pc_{\rho}(\rho_0, p_{\rho})\equiv \\{ P(\rho < \rho_0)=p_{\rho}\\},\\
+\rho_0 = size/2, \\; p_{\rho} = 1/2,\\
+\sigma \sim pc_{\sigma}(\sigma_{0}, p_{\sigma}) \\; : \\; pc_{\sigma}(\sigma_0, p_{\sigma})\equiv \\{ P(\sigma > \sigma_0)=p_{\sigma}\\},\\
+\sigma_0 = 1, \\; p_{\sigma} = 1/2,\\
+\alpha \sim N(0,0.001),\\
+\log(\tau) \sim log-Gamma(1, 0.00005).
+\end{array}
+$$
+
+Most of the elements are identical to those shown for the independent model, with the exception that there are two likelihoods and that the spatial effect is linked between them. The main different is that we can set wich elements share their effects though the geostatistical and point process layer. Therefore, the configuration options for this section are essentially the same as for the previous one, but in the <i>Advanced INLA configuration</i> the user can specify the values for the sharing effect prior distributions.
+
+<h3> 3.5 Mixture Model </h3>
 
 In the Mixture Model we assume that the wole data $\mathbf{Y}$ is a mixture of different data sets $\mathbf{Y}=\cup_{j=1}^{m} \mathbf{Y}_j$ coming from $m$ different sampling structures. Therefore, the Mixture Model have the same geostatistical structured as the models above
 
@@ -227,7 +259,7 @@ where $a_{ij}$ is a binary value $(0,1)$ indexing the $i$-th observation belongi
 
 Finally, the latent element distributions and the hyperpameter prior distributions follow the same structure as for the independent and preferential models.
 
-<h3> 3.3 Feedback </h3>
+<h3> 3.6 Feedback </h3>
 
 Through the control options, from the specification of the prior distributions, a <i>Bayesian feedback by moment updating</i> can be performed. That is, from the results obtained in the tables for the latent parameters and hyperparameters, the user can specify in the control options the means and precisions[^5] of these posterior distributions. In the case of penalized distributions, the values for $\rho$ and $\sigma$ can be specified in one of the available quantiles.
 
