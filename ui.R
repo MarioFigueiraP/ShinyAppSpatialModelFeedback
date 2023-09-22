@@ -137,7 +137,12 @@ body <- dashboardBody(
                       the complexity of its code into a user-friendly interface for continuous spatial modelling."),
           p("To overcome this shortcoming, we present a novel application that allows the use of the INLA 
                       methodology for those users who are not very experienced or for those users with experience who prefer a tool 
-                      that allows them to carry out an initial analysis quickly, avoiding the process of writing code."),
+                      that allows them to carry out an initial analysis quickly, avoiding the process of writing code. 
+            The modelling structures that have been implemented in the application are: geostatistical models, log-Gaussian Cox process models, 
+            preferential models and mixture models."),
+          p("Although this application was intended to provide a simple and versatile tool for the SDM domain, it can be used in any other domain 
+            where geostatistical, LGCP, preferential or mixture models are required. Examples of other areas where the application can be used are 
+            environmental sciences, spatial econometrics, geospatial health, etc."),
           htmlOutput("Presentation1", fill = TRUE)
         )
       )
@@ -516,17 +521,17 @@ body <- dashboardBody(
                   value = 1
                 ),
                 numericInput("niid.samples", "Number of samples (iid)",
-                  value = 60
+                  value = 120
                 ),
                 numericInput("seedSampleP",
                   label = "Seed (ps):",
                   value = 1
                 ),
                 numericInput("nps.samples", "Number of samples (ps)",
-                  value = 60
+                  value = 120
                 ),
                 numericInput("r.scale", "Scale factor (ps)",
-                  value = 8
+                  value = 7
                 )
               )
             ),
@@ -551,7 +556,7 @@ body <- dashboardBody(
                              value = 60
                 ),
                 numericInput("r.scale.mixture1", "Scale factor (m1)",
-                             value = -8
+                             value = -7
                 ),
                 numericInput("seedSample.mixture2",
                              label = "Seed (m2):",
@@ -561,7 +566,7 @@ body <- dashboardBody(
                              value = 60
                 ),
                 numericInput("r.scale.mixture2", "Scale factor (m2)",
-                             value = 8
+                             value = 7
                 )
               )
             )
@@ -758,8 +763,8 @@ body <- dashboardBody(
               tags$div(
                 HTML("In this section we briefly explain how data reading works in this app. For this purpose, there are two elements in the UI: 
                                <ol>
-                               <li><strong>Load Analysis Data Frame:</strong> it allows to read the loaded data frame, but the two first columns must be the \\((x,y)\\) coordinates, the third the observational variable \\(y\\) and the others the explanatory variables \\(\\mathbf(X)\\).
-                               <li><strong>Load Covariates Data Frame:</strong> it allows to read a data frame realated to some covariate and using it for the prediction grid. The two first columns must be the \\((x,y)\\) and the third the covariate.</li>
+                               <li><strong>Main Analysis Data Frame:</strong> it allows to read the loaded data frame, but the two first columns must be the \\((x,y)\\) coordinates, the third the observational variable \\(y\\) and the others the explanatory variables \\(\\mathbf(X)\\).
+                               <li><strong>Auxiliary Covariate Data Frame:</strong> it allows to read a data frame realated to some covariate and using it for the prediction grid. The two first columns must be the \\((x,y)\\) and the third the covariate.</li>
                               </ol>
                                Once any data frame is loaded its table and a plot will appear in the interface.  
                                ")
@@ -797,12 +802,12 @@ body <- dashboardBody(
           box(
             width = 4,
             fileInput("file.uploadData",
-              label = "Load Analysis Data Frame:",
+              label = "Main Analysis Data Frame:",
               placeholder = "No file selected (.csv or .rds)"
             ),
             # sliderInput("AspectRatioSample", label="Aspect Ratio", min=1, max=10, value=2),
             fileInput("file.uploadDataRaster",
-              label = "Load Covariates Data Frame:",
+              label = "Auxiliary Covariate Data Frame:",
               placeholder = "No file selected (.csv or .rds)"
             )
           )
@@ -876,16 +881,16 @@ body <- dashboardBody(
                       choices = list("Simulated" = "sim", "Loaded" = "load"), selected = "sim"
           ),
           selectInput("IndRasterSPDE",
-                      label = "Covariate for data prediction",
-                      choices = list("Raster" = "raster", "Solve as SPDE" = "solvecov"), selected = "solvecov"
+                      label = "Use auxilary data",
+                      choices = list("Yes" = "raster", "No" = "solvecov"), selected = "solvecov"
           ),
           conditionalPanel(
             condition = "input.IndRasterSPDE=='raster'",
             selectInput("IndRasterPred",
-                        label = "Options for prediction",
+                        label = "Auxiliary data functionality",
                         selected = "SPDEraster",
-                        choices = list("Prediction grid through raster (SPDE)" = "SPDEraster",
-                                       "Raster as prediction locations" = "rasterpred")
+                        choices = list("Additional data" = "SPDEraster",
+                                       "Fixing prediction points" = "rasterpred")
             )
           ),
           conditionalPanel(
@@ -1092,7 +1097,7 @@ body <- dashboardBody(
             status = "info", solidHeader = TRUE,
             selectInput("INLAModeInd",
                         label = "INLA Mode",
-                        choices = list("Default" = "compact",
+                        choices = list("Default (Compact)" = "compact",
                                        "Classic" = "classic",
                                        "Experimental" = "experimental")
             ),
@@ -1288,12 +1293,16 @@ body <- dashboardBody(
                 downloadableTableUI("tableIndModelInternalHyperPar", downloadtypes = c("csv", "tsv"))
               ),
               column(
-                width = 8,
+                width = 12,
                 downloadableTableUI("dataIndCPOtable", downloadtypes = c("csv", "tsv"))
               ),
               column(
-                width = 4,
+                width = 6,
                 downloadableTableUI("dataIndDICtable", downloadtypes = c("csv", "tsv"))
+              ),
+              column(
+                width = 6,
+                downloadableTableUI("dataIndWAICtable", downloadtypes = c("csv", "tsv"))
               )
             )
           )
@@ -1313,16 +1322,16 @@ body <- dashboardBody(
                       choices = list("Simulated" = "sim", "Loaded" = "load"), selected = "sim"
           ),
           selectInput("LgcpRasterSPDE",
-                      label = "Covariate for data prediction",
-                      choices = list("Raster" = "raster", "Solve as SPDE" = "solvecov"), selected = "solvecov"
+                      label = "Use auxilary data",
+                      choices = list("Yes" = "raster", "No" = "solvecov"), selected = "solvecov"
           ),
           conditionalPanel(
             condition = "input.LgcpRasterSPDE=='raster'",
             selectInput("LgcpRasterPred",
-                        label = "Options for prediction",
+                        label = "Auxiliary data functionality",
                         selected = "SPDEraster",
-                        choices = list("Prediction grid through raster (SPDE)" = "SPDEraster",
-                                       "Raster as prediction locations" = "rasterpred")
+                        choices = list("Additional data" = "SPDEraster",
+                                       "Fixing prediction points" = "rasterpred")
             )
           ),
           conditionalPanel(
@@ -1529,7 +1538,7 @@ body <- dashboardBody(
             status = "info", solidHeader = TRUE,
             selectInput("INLAModeLgcp",
                         label = "INLA Mode",
-                        choices = list("Default" = "compact",
+                        choices = list("Default (Compact)" = "compact",
                                        "Classic" = "classic",
                                        "Experimental" = "experimental")
             ),
@@ -1725,12 +1734,16 @@ body <- dashboardBody(
                 downloadableTableUI("tableLgcpModelInternalHyperPar", downloadtypes = c("csv", "tsv"))
               ),
               column(
-                width = 8,
+                width = 12,
                 downloadableTableUI("dataLgcpCPOtable", downloadtypes = c("csv", "tsv"))
               ),
               column(
-                width = 4,
+                width = 6,
                 downloadableTableUI("dataLgcpDICtable", downloadtypes = c("csv", "tsv"))
+              ),
+              column(
+                width = 6,
+                downloadableTableUI("dataLgcpWAICtable", downloadtypes = c("csv", "tsv"))
               )
             )
           )
@@ -1751,16 +1764,16 @@ body <- dashboardBody(
                       choices = list("Simulated" = "sim", "Loaded" = "load"), selected = "sim"
           ),
           selectInput("PrefRasterSPDE",
-                      label = "Covariate for data prediction",
-                      choices = list("Raster" = "raster", "Solve as SPDE" = "solvecov"), selected = "solvecov"
+                      label = "Use auxilary data",
+                      choices = list("Yes" = "raster", "No" = "solvecov"), selected = "solvecov"
           ),
           conditionalPanel(
             condition = "input.PrefRasterSPDE=='raster'",
             selectInput("PrefRasterPred",
-                        label = "Options for prediction",
+                        label = "Auxiliary data functionality",
                         selected = "SPDEraster",
-                        choices = list("Prediction grid through raster (SPDE)" = "SPDEraster",
-                                       "Raster as prediction locations" = "rasterpred")
+                        choices = list("Additional data" = "SPDEraster",
+                                       "Fixing prediction points" = "rasterpred")
             )
           ),
           conditionalPanel(
@@ -1968,7 +1981,7 @@ body <- dashboardBody(
             status = "info", solidHeader = TRUE,
             selectInput("INLAModePref",
                         label = "INLA Mode",
-                        choices = list("Default" = "compact",
+                        choices = list("Default (Compact)" = "compact",
                                        "Classic" = "classic",
                                        "Experimental" = "experimental")
             ),
@@ -2164,12 +2177,16 @@ body <- dashboardBody(
                 downloadableTableUI("tablePrefModelInternalHyperPar", downloadtypes = c("csv", "tsv"))
               ),
               column(
-                width = 8,
+                width = 12,
                 downloadableTableUI("dataPrefCPOtable", downloadtypes = c("csv", "tsv"))
               ),
               column(
-                width = 4,
+                width = 6,
                 downloadableTableUI("dataPrefDICtable", downloadtypes = c("csv", "tsv"))
+              ),
+              column(
+                width = 6,
+                downloadableTableUI("dataPrefWAICtable", downloadtypes = c("csv", "tsv"))
               )
             )
           )
@@ -2189,16 +2206,16 @@ body <- dashboardBody(
                       choices = list("Simulated" = "sim", "Loaded" = "load"), selected = "sim"
           ),
           selectInput("MixtureRasterSPDE",
-                      label = "Covariate for data prediction",
-                      choices = list("Raster" = "raster", "Solve as SPDE" = "solvecov"), selected = "solvecov"
+                      label = "Use auxilary data",
+                      choices = list("Yes" = "raster", "No" = "solvecov"), selected = "solvecov"
           ),
           conditionalPanel(
             condition = "input.MixtureRasterSPDE=='raster'",
             selectInput("MixtureRasterPred",
-                        label = "Options for prediction",
+                        label = "Auxiliary data functionality",
                         selected = "SPDEraster",
-                        choices = list("Prediction grid through raster (SPDE)" = "SPDEraster",
-                                       "Raster as prediction locations" = "rasterpred")
+                        choices = list("Additional data" = "SPDEraster",
+                                       "Fixing prediction points" = "rasterpred")
             )
           ),
           conditionalPanel(
@@ -2407,7 +2424,7 @@ body <- dashboardBody(
             status = "info", solidHeader = TRUE,
             selectInput("INLAModeMixture",
                         label = "INLA Mode",
-                        choices = list("Default" = "compact",
+                        choices = list("Default (Compact)" = "compact",
                                        "Classic" = "classic",
                                        "Experimental" = "experimental")
             ),
@@ -2602,12 +2619,16 @@ body <- dashboardBody(
                 downloadableTableUI("tableMixtureModelInternalHyperPar", downloadtypes = c("csv", "tsv"))
               ),
               column(
-                width = 8,
+                width = 12,
                 downloadableTableUI("dataMixtureCPOtable", downloadtypes = c("csv", "tsv"))
               ),
               column(
-                width = 4,
+                width = 6,
                 downloadableTableUI("dataMixtureDICtable", downloadtypes = c("csv", "tsv"))
+              ),
+              column(
+                width = 6,
+                downloadableTableUI("dataMixtureWAICtable", downloadtypes = c("csv", "tsv"))
               )
             )
           )
