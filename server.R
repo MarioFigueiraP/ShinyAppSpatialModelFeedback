@@ -1683,7 +1683,7 @@ shinyServer(function(input, output, session) {
                           control.predictor = list(A = inla.stack.A(Total.stack), compute = TRUE, link = 1),
                           control.family = controlFamily,
                           control.mode = controlModeTheta,
-                          control.compute = list(cpo = TRUE, dic = TRUE, config = TRUE),
+                          control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),
                           inla.mode=input$INLAModeInd,
                           verbose=FALSE)
       
@@ -1716,16 +1716,18 @@ shinyServer(function(input, output, session) {
       colnames(DFspatialMeanMedianStdev)[1:2] <- colnames(DFsample)[1:2]
       
       result <- list(DFpredAbunMeanMedianStdev=list(DFpredAbunMeanMedianStdev=DFpred),
-                      DFpredictorMeanMedianStdev=list(DFpredictorMeanMedianStdev=DFpredictorMeanMedianStdev),
-                      DFspatialMeanMedianStdev=list(DFspatialMeanMedianStdev=DFspatialMeanMedianStdev),
-                      IndModel=list(IndModel=Ind.model),
-                      DFPostFixed=list(DFPostFixed=Ind.model$marginals.fixed),
-                      DFPostHyperpar=list(DFPostHyperpar=Ind.model$marginals.hyperpar),
-                      Summary.fixed=list(Summary.fixed=Ind.model$summary.fixed),
-                      Summary.hyperpar=list(Summary.hyperpar=Ind.model$summary.hyperpar),
-                      SummaryInternalHyper=list(SummaryInternalHyper=Ind.model$internal.summary.hyperpar),
-                      SummaryCPO=list(SummaryCPO=na.omit(Ind.model$cpo$cpo)),
-                      DICmodel=list(DICmodel=data.frame(DIC=Ind.model$dic$family.dic, row.names="Geostatistical")))
+                     DFpredictorMeanMedianStdev=list(DFpredictorMeanMedianStdev=DFpredictorMeanMedianStdev),
+                     DFspatialMeanMedianStdev=list(DFspatialMeanMedianStdev=DFspatialMeanMedianStdev),
+                     IndModel=list(IndModel=Ind.model),
+                     DFPostFixed=list(DFPostFixed=Ind.model$marginals.fixed),
+                     DFPostHyperpar=list(DFPostHyperpar=Ind.model$marginals.hyperpar),
+                     Summary.fixed=list(Summary.fixed=Ind.model$summary.fixed),
+                     Summary.hyperpar=list(Summary.hyperpar=Ind.model$summary.hyperpar),
+                     SummaryInternalHyper=list(SummaryInternalHyper=Ind.model$internal.summary.hyperpar),
+                     SummaryCPO=list(SummaryCPO=na.omit(Ind.model$cpo$cpo)),
+                     DICmodel=list(DICmodel=data.frame(DIC=Ind.model$dic$family.dic, row.names="Geostatistical")),
+                     WAICmodel=list(WAICmodel=data.frame(WAIC=cbind(unlist(lapply(na.omit(unique(Ind.model$dic$family)), function(i){sum(Ind.model$waic$local.waic[which(Ind.model$dic$family==i)])}))), row.names="Geostatistical"))
+                     )
       
       t2 <- Sys.time()
       difftime(t2,t1, units="secs")
@@ -2051,7 +2053,7 @@ shinyServer(function(input, output, session) {
                       caption="Summary internal hyperparameters")
     
     dataIndDICtable <- function(){
-      DF <- IndModelFit()$DICmodel$DICmodel %>% # data.frame(DIC=InderentialModelFit()$DICmodel$DICmodel) %>%
+      DF <- IndModelFit()$DICmodel$DICmodel %>%
         mutate(across(where(is.numeric), round, digits = 2))
       return(DF)
     }
@@ -2063,6 +2065,20 @@ shinyServer(function(input, output, session) {
                                             tsv=dataIndDICtable),
                       tabledata=dataIndDICtable, rownames = TRUE,
                       caption="Model DIC")
+    
+    dataIndWAICtable <- function(){
+      DF <- IndModelFit()$WAICmodel$WAICmodel %>%
+        mutate(across(where(is.numeric), round, digits = 2))
+      return(DF)
+    }
+    
+    downloadableTable("dataIndWAICtable",
+                      logger=ss_userAction.Log,
+                      filenameroot="dataIndWAICtable",
+                      downloaddatafxns=list(csv=dataIndWAICtable,
+                                            tsv=dataIndWAICtable),
+                      tabledata=dataIndWAICtable, rownames = TRUE,
+                      caption="Model WAIC")
     
     dataIndCPOtable <- function(){
       CPO <- IndModelFit()$SummaryCPO$SummaryCPO
@@ -2970,7 +2986,7 @@ shinyServer(function(input, output, session) {
                          control.predictor = list(A = inla.stack.A(Total.stack), compute = TRUE, link = 1),
                          control.family = controlFamily,
                          control.mode = controlModeTheta,
-                         control.compute = list(cpo = TRUE, dic = TRUE, config = TRUE),
+                         control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),
                          inla.mode=input$INLAModeLgcp,
                          verbose=FALSE)
       
@@ -3012,7 +3028,9 @@ shinyServer(function(input, output, session) {
                      Summary.hyperpar=list(Summary.hyperpar=Lgcp.model$summary.hyperpar),
                      SummaryInternalHyper=list(SummaryInternalHyper=Lgcp.model$internal.summary.hyperpar),
                      SummaryCPO=list(SummaryCPO=na.omit(Lgcp.model$cpo$cpo)),
-                     DICmodel=list(DICmodel=data.frame(DIC=Lgcp.model$dic$family.dic, row.names=c("Point process"))))
+                     DICmodel=list(DICmodel=data.frame(DIC=Lgcp.model$dic$family.dic, row.names=c("Point process"))),
+                     WAICmodel=list(WAICmodel=data.frame(WAIC=cbind(unlist(lapply(na.omit(unique(Lgcp.model$dic$family)), function(i){sum(Lgcp.model$waic$local.waic[which(Lgcp.model$dic$family==i)])}))), row.names=c("Point process")))
+                     )
       
       t2 <- Sys.time()
       difftime(t2,t1, units="secs")
@@ -3338,7 +3356,7 @@ shinyServer(function(input, output, session) {
                       caption="Summary internal hyperparameters")
     
     dataLgcpDICtable <- function(){
-      DF <- LgcpModelFit()$DICmodel$DICmodel %>% # data.frame(DIC=LgcperentialModelFit()$DICmodel$DICmodel) %>%
+      DF <- LgcpModelFit()$DICmodel$DICmodel %>%
         mutate(across(where(is.numeric), round, digits = 2))
       return(DF)
     }
@@ -3350,6 +3368,20 @@ shinyServer(function(input, output, session) {
                                             tsv=dataLgcpDICtable),
                       tabledata=dataLgcpDICtable, rownames = TRUE,
                       caption="Model DIC")
+    
+    dataLgcpWAICtable <- function(){
+      DF <- LgcpModelFit()$WAICmodel$WAICmodel %>%
+        mutate(across(where(is.numeric), round, digits = 2))
+      return(DF)
+    }
+    
+    downloadableTable("dataLgcpWAICtable",
+                      logger=ss_userAction.Log,
+                      filenameroot="dataLgcpWAICtable",
+                      downloaddatafxns=list(csv=dataLgcpWAICtable,
+                                            tsv=dataLgcpWAICtable),
+                      tabledata=dataLgcpWAICtable, rownames = TRUE,
+                      caption="Model WAIC")
     
     dataLgcpCPOtable <- function(){
       CPO <- LgcpModelFit()$SummaryCPO$SummaryCPO
@@ -4389,7 +4421,7 @@ shinyServer(function(input, output, session) {
                              control.predictor = list(A = inla.stack.A(Total.stack), compute = TRUE, link = 1),
                              control.family = controlFamily,
                              control.mode = controlModeTheta,
-                             control.compute = list(cpo = TRUE, dic = TRUE, config = TRUE),
+                             control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),
                              inla.mode=input$INLAModePref,
                              verbose=FALSE)
 
@@ -4422,16 +4454,18 @@ shinyServer(function(input, output, session) {
       colnames(DFspatialMeanMedianStdev)[1:2] <- colnames(DFsample)[1:2]
 
       result <- list(DFpredAbunMeanMedianStdev=list(DFpredAbunMeanMedianStdev=DFpred),
-                      DFpredictorMeanMedianStdev=list(DFpredictorMeanMedianStdev=DFpredictorMeanMedianStdev),
-                      DFspatialMeanMedianStdev=list(DFspatialMeanMedianStdev=DFspatialMeanMedianStdev),
-                      PrefModel=list(PrefModel=Pref.model),
-                      DFPostFixed=list(DFPostFixed=Pref.model$marginals.fixed),
-                      DFPostHyperpar=list(DFPostHyperpar=Pref.model$marginals.hyperpar),
-                      Summary.fixed=list(Summary.fixed=Pref.model$summary.fixed),
-                      Summary.hyperpar=list(Summary.hyperpar=Pref.model$summary.hyperpar),
-                      SummaryInternalHyper=list(SummaryInternalHyper=Pref.model$internal.summary.hyperpar),
-                      SummaryCPO=list(SummaryCPO=na.omit(Pref.model$cpo$cpo)),
-                      DICmodel=list(DICmodel=data.frame(DIC=Pref.model$dic$family.dic, row.names=if(length(UserComponentsPrefSharing)>0){c("Geostatistical", "Point process")}else{c("Geostatistical")})))
+                     DFpredictorMeanMedianStdev=list(DFpredictorMeanMedianStdev=DFpredictorMeanMedianStdev),
+                     DFspatialMeanMedianStdev=list(DFspatialMeanMedianStdev=DFspatialMeanMedianStdev),
+                     PrefModel=list(PrefModel=Pref.model),
+                     DFPostFixed=list(DFPostFixed=Pref.model$marginals.fixed),
+                     DFPostHyperpar=list(DFPostHyperpar=Pref.model$marginals.hyperpar),
+                     Summary.fixed=list(Summary.fixed=Pref.model$summary.fixed),
+                     Summary.hyperpar=list(Summary.hyperpar=Pref.model$summary.hyperpar),
+                     SummaryInternalHyper=list(SummaryInternalHyper=Pref.model$internal.summary.hyperpar),
+                     SummaryCPO=list(SummaryCPO=na.omit(Pref.model$cpo$cpo)),
+                     DICmodel=list(DICmodel=data.frame(DIC=Pref.model$dic$family.dic, row.names=if(length(UserComponentsPrefSharing)>0){c("Geostatistical", "Point process")}else{c("Geostatistical")})),
+                     WAICmodel=list(WAICmodel=data.frame(WAIC=cbind(unlist(lapply(na.omit(unique(Pref.model$dic$family)), function(i){sum(Pref.model$waic$local.waic[which(Pref.model$dic$family==i)])}))), row.names=if(length(UserComponentsPrefSharing)>0){c("Geostatistical", "Point process")}else{c("Geostatistical")}))
+                     )
 
       t2 <- Sys.time()
       difftime(t2,t1, units="secs")
@@ -4769,6 +4803,20 @@ shinyServer(function(input, output, session) {
                                             tsv=dataPrefDICtable),
                       tabledata=dataPrefDICtable, rownames = TRUE,
                       caption="Model DIC")
+    
+    dataPrefWAICtable <- function(){
+      DF <- PrefModelFit()$WAICmodel$WAICmodel %>% # data.frame(DIC=PreferentialModelFit()$DICmodel$DICmodel) %>%
+        mutate(across(where(is.numeric), round, digits = 2))
+      return(DF)
+    }
+    
+    downloadableTable("dataPrefWAICtable",
+                      logger=ss_userAction.Log,
+                      filenameroot="dataPrefWAICtable",
+                      downloaddatafxns=list(csv=dataPrefWAICtable,
+                                            tsv=dataPrefWAICtable),
+                      tabledata=dataPrefWAICtable, rownames = TRUE,
+                      caption="Model WAIC")
 
     dataPrefCPOtable <- function(){
       CPO <- PrefModelFit()$SummaryCPO$SummaryCPO
@@ -5835,7 +5883,7 @@ shinyServer(function(input, output, session) {
                             control.predictor = list(A = inla.stack.A(Total.stack), compute = TRUE, link = 1),
                             control.family = controlFamily,
                             control.mode = controlModeTheta,
-                            control.compute = list(cpo = TRUE, dic = TRUE, config = TRUE),
+                            control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),
                             inla.mode=input$INLAModeMixture,
                             verbose=FALSE)
 
@@ -5877,7 +5925,9 @@ shinyServer(function(input, output, session) {
                      Summary.hyperpar=list(Summary.hyperpar=Mixture.model$summary.hyperpar),
                      SummaryInternalHyper=list(SummaryInternalHyper=Mixture.model$internal.summary.hyperpar),
                      SummaryCPO=list(SummaryCPO=na.omit(Mixture.model$cpo$cpo)),
-                     DICmodel=list(DICmodel=data.frame(DIC=Mixture.model$dic$family.dic, row.names=if(length(UserComponentsMixtureSharing)>0){c("Geostatistical", "Point process")}else{c("Geostatistical")})))
+                     DICmodel=list(DICmodel=data.frame(DIC=Mixture.model$dic$family.dic, row.names=if(length(UserComponentsMixtureSharing)>0){c("Geostatistical", "Point process")}else{c("Geostatistical")})),
+                     WAICmodel=list(WAICmodel=data.frame(WAIC=cbind(unlist(lapply(na.omit(unique(Mixture.model$dic$family)), function(i){sum(Mixture.model$waic$local.waic[which(Mixture.model$dic$family==i)])}))), row.names=if(length(UserComponentsMixtureSharing)>0){c("Geostatistical", "Point process")}else{c("Geostatistical")}))
+                     )
 
       t2 <- Sys.time()
       difftime(t2,t1, units="secs")
@@ -6203,7 +6253,7 @@ shinyServer(function(input, output, session) {
                       caption="Summary internal hyperparameters")
     
     dataMixtureDICtable <- function(){
-      DF <- MixtureModelFit()$DICmodel$DICmodel %>% # data.frame(DIC=PreferentialModelFit()$DICmodel$DICmodel) %>%
+      DF <- MixtureModelFit()$DICmodel$DICmodel %>%
         mutate(across(where(is.numeric), round, digits = 2))
       return(DF)
     }
@@ -6215,6 +6265,20 @@ shinyServer(function(input, output, session) {
                                             tsv=dataMixtureDICtable),
                       tabledata=dataMixtureDICtable, rownames = TRUE,
                       caption="Model DIC")
+    
+    dataMixtureWAICtable <- function(){
+      DF <- MixtureModelFit()$WAICmodel$WAICmodel %>%
+        mutate(across(where(is.numeric), round, digits = 2))
+      return(DF)
+    }
+    
+    downloadableTable("dataMixtureWAICtable",
+                      logger=ss_userAction.Log,
+                      filenameroot="dataMixtureWAICtable",
+                      downloaddatafxns=list(csv=dataMixtureWAICtable,
+                                            tsv=dataMixtureWAICtable),
+                      tabledata=dataMixtureWAICtable, rownames = TRUE,
+                      caption="Model WAIC")
     
     dataMixtureCPOtable <- function(){
       CPO <- MixtureModelFit()$SummaryCPO$SummaryCPO
