@@ -58,7 +58,7 @@ install.packages("dplyr")
 
 The INLA package installation could give some problems or errors[^1], in such case it is desirable to visit the [INLA home page](https://www.r-inla.org/), where the installation is explained in some detail and many FAQ are answered.
 
-[^1]: As far as I know, errors might occur in the intallation process or after using some of its functions, e. g. if we install the default stable version of INLA in Linux Mint 18.2 Sonya we might not be able to solve spatial models or even simulate a spatial effect through <code>inla.qsample()</code> function. The only way I have managed to get INLA working on Linux Mint 18.2 Sonya was by installing an alternative binary build, specifically using the function <code>  inla.binary.install(os="CentOS Linux-7")</code> over the default installation.
+[^1]: As far as I know, errors might occur in the intallation process or after using some of its functions, e. g. if we install the default stable version of INLA in Linux Mint 18.2 Sonya we might not be able to solve spatial models or even simulate a spatial effect through <code>inla.qsample()</code> function. The only way I have managed to get INLA working on Linux Mint 18.2 Sonya was by installing an alternative binary build, specifically using the function <code>inla.binary.install(os="CentOS Linux-7")</code> over the default installation.
 
 <h1> Main application sections </h1>
 
@@ -136,7 +136,7 @@ This section allows to upload a data frame by the user (<i>Load Analysis Data Fr
 
 <h2> 3. Model Analysis </h2>
 
-This section presents the inference procedures for spatial data. The three model structures availables are (i) an <i>independent model</i>, (ii) a <i>preferential model</i> and a <i>mixture model</i>, which we will use depending on whether the data come from an independent, preferential sampling or a data mixture from different samplers. The models proposed are Bayesian hierarchical models, which means that the model has to layers of parameters: (i) one layer of parameters directly related to the predictor $\eta_i$, called <i>latent parameters</i>, and (ii) a second layer in which the parameters are related to other parameters, called <i>hyperparameters</i>. Let's see this with a small example:
+This section presents the inference procedures for spatial data. The four model structures available are (i) an <i>independent model</i>, (ii) a <i>log-Gaussian Cox process model</i>, (iii) a <i>preferential model</i> and (iv) a <i>mixture model</i>, which we will use depending on whether the data come from an independent, preferential sampling or a data mixture from different samplers. The models proposed are Bayesian hierarchical models, which means that the model has to layers of parameters: (i) one layer of parameters directly related to the predictor $\eta_i$, called <i>latent parameters</i>, and (ii) a second layer in which the parameters are related to other parameters, called <i>hyperparameters</i>. Let's see this with a small example:
 
 $$
 \left\\{ \eta_i = \beta_0 + \mathbf{X_i}\cdot\boldsymbol\beta + \sum_j f_j(Z_{ij}) + u_i(\rho,\sigma) + \epsilon(\sigma) \right\\} \longleftarrow \text{Latent parameters}

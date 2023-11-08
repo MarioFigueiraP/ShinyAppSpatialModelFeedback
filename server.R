@@ -1095,31 +1095,16 @@ shinyServer(function(input, output, session) {
     IndMeshBase <- reactive({
       if(input$IndDataSimulatedLoaded=="sim"){
         DFsample <- as.data.frame(Ind.sampling())
-        convexhull <- chull(DFsample[,1:2])
-        convexhull <- c(convexhull, convexhull[1])
-        qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
-        mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
-                             max.edge=c(qloc[1], qloc[2]))
-        sample <- DFsample
       } else if(input$IndDataSimulatedLoaded=="load"){
-        DFsample <- datareadSample()
-        if(input$IndRasterSPDE=="raster"){
-          rasterSample <- datareadRaster()[sample(1:nrow(datareadRaster()), min(c(50,nrow(datareadRaster())))),1:2]
-          qloc <- quantile(as.vector(dist(rasterSample)),probs=c(0.03,0.3))
-          convexhull <- chull(datareadRaster()[,1:2])
-          convexhull <- c(convexhull, convexhull[1])
-          mesh <- fm_mesh_2d_inla(loc.domain=datareadRaster()[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
-                               max.edge=c(qloc[1], qloc[2]))
-          sample <- rasterSample
-        } else if(input$IndRasterSPDE=="solvecov"){
-          convexhull <- chull(rbind(DFsample[,1:2],datareadRaster()[,1:2]))
-          convexhull <- c(convexhull, convexhull[1])
-          qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
-          mesh <- fm_mesh_2d_inla(loc.domain=rbind(DFsample[,1:2],datareadRaster()[,1:2])[convexhull,], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
-                               max.edge=c(qloc[1], qloc[2]))
-          sample <- DFsample
-        }
+        DFsample <- as.data.frame(datareadSample())
       }
+      
+      convexhull <- chull(DFsample[,1:2])
+      convexhull <- c(convexhull, convexhull[1])
+      qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
+      mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
+                              max.edge=c(qloc[1], qloc[2]))
+      sample <- DFsample
       result <- list(mesh=mesh, qloc=qloc, Sample=sample)
       return(result)
     })
@@ -2353,31 +2338,16 @@ shinyServer(function(input, output, session) {
     LgcpMeshBase <- reactive({
       if(input$LgcpDataSimulatedLoaded=="sim"){
         DFsample <- as.data.frame(Lgcp.sampling())
-        convexhull <- chull(DFsample[,1:2])
-        convexhull <- c(convexhull, convexhull[1])
-        qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
-        mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
-                             max.edge=c(qloc[1], qloc[2]))
-        sample <- DFsample
       } else if(input$LgcpDataSimulatedLoaded=="load"){
-        DFsample <- datareadSample()
-        if(input$LgcpRasterSPDE=="raster"){
-          rasterSample <- datareadRaster()[sample(1:nrow(datareadRaster()), min(c(50,nrow(datareadRaster())))),1:2]
-          qloc <- quantile(as.vector(dist(rasterSample)),probs=c(0.03,0.3))
-          convexhull <- chull(datareadRaster()[,1:2])
-          convexhull <- c(convexhull, convexhull[1])
-          mesh <- fm_mesh_2d_inla(loc.domain=datareadRaster()[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
-                               max.edge=c(qloc[1], qloc[2]))
-          sample <- rasterSample
-        } else if(input$LgcpRasterSPDE=="solvecov"){
-          convexhull <- chull(rbind(DFsample[,1:2],datareadRaster()[,1:2]))
-          convexhull <- c(convexhull, convexhull[1])
-          qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
-          mesh <- fm_mesh_2d_inla(loc.domain=rbind(DFsample[,1:2],datareadRaster()[,1:2])[convexhull,], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
-                               max.edge=c(qloc[1], qloc[2]))
-          sample <- DFsample
-        }
+        DFsample <- as.data.frame(datareadSample())
       }
+        
+      convexhull <- chull(DFsample[,1:2])
+      convexhull <- c(convexhull, convexhull[1])
+      qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
+      mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
+                              max.edge=c(qloc[1], qloc[2]))
+      sample <- DFsample
       result <- list(mesh=mesh, qloc=qloc, Sample=sample)
       return(result)
     })
@@ -2561,12 +2531,12 @@ shinyServer(function(input, output, session) {
       
       # LGCP mesh operations
       ldomain <- unique(mesh$loc[mesh$segm$int$idx,1:2])
-      dmesh <- mesh.dual(mesh = mesh)
-      domain.polys <- Polygons(list(Polygon(ldomain)), '0')
-      domainSP <- SpatialPolygons(list(domain.polys))
+      dmesh <<- mesh.dual(mesh = mesh)
+      domain.polys <<- Polygons(list(Polygon(ldomain)), '0')
+      domainSP <<- SpatialPolygons(list(domain.polys))
       w <- sapply(1:length(dmesh), function(i) {
-        if (gIntersects(dmesh[i, ], domainSP))
-          return(gArea(gIntersection(dmesh[i, ], domainSP)))
+        if (sf::st_intersects(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP), sparse=FALSE))
+          return(sf::st_area(sf::st_intersection(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP))))
         else return(0)
       })
       
@@ -3656,31 +3626,16 @@ shinyServer(function(input, output, session) {
     PrefMeshBase <- reactive({
       if(input$PrefDataSimulatedLoaded=="sim"){
         DFsample <- as.data.frame(Pref.sampling())
-        convexhull <- chull(DFsample[,1:2])
-        convexhull <- c(convexhull, convexhull[1])
-        qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
-        mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
-                                max.edge=c(qloc[1], qloc[2]))
-        sample <- DFsample
       } else if(input$PrefDataSimulatedLoaded=="load"){
-        DFsample <- datareadSample()
-        if(input$PrefRasterSPDE=="raster"){
-          rasterSample <- datareadRaster()[sample(1:nrow(datareadRaster()), min(c(50,nrow(datareadRaster())))),1:2]
-          qloc <- quantile(as.vector(dist(rasterSample)),probs=c(0.03,0.3))
-          convexhull <- chull(datareadRaster()[,1:2])
-          convexhull <- c(convexhull, convexhull[1])
-          mesh <- fm_mesh_2d_inla(loc.domain=datareadRaster()[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
-                                  max.edge=c(qloc[1], qloc[2]))
-          sample <- rasterSample
-        } else if(input$PrefRasterSPDE=="solvecov"){
-          convexhull <- chull(rbind(DFsample[,1:2],datareadRaster()[,1:2]))
-          convexhull <- c(convexhull, convexhull[1])
-          qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
-          mesh <- fm_mesh_2d_inla(loc.domain=rbind(DFsample[,1:2],datareadRaster()[,1:2])[convexhull,], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
-                                  max.edge=c(qloc[1], qloc[2]))
-          sample <- DFsample
-        }
+        DFsample <- as.data.frame(datareadSample())
       }
+      
+      convexhull <- chull(DFsample[,1:2])
+      convexhull <- c(convexhull, convexhull[1])
+      qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
+      mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
+                              max.edge=c(qloc[1], qloc[2]))
+      sample <- DFsample
       result <- list(mesh=mesh, qloc=qloc, Sample=sample)
       return(result)
     })
@@ -3871,8 +3826,11 @@ shinyServer(function(input, output, session) {
       domain.polys <- Polygons(list(Polygon(ldomain)), '0')
       domainSP <- SpatialPolygons(list(domain.polys))
       w <- sapply(1:length(dmesh), function(i) {
-        if (gIntersects(dmesh[i, ], domainSP))
-          return(gArea(gIntersection(dmesh[i, ], domainSP)))
+        # if (gIntersects(dmesh[i, ], domainSP))
+        #   return(gArea(gIntersection(dmesh[i, ], domainSP)))
+        # else return(0)
+        if (sf::st_intersects(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP), sparse=FALSE))
+          return(sf::st_area(sf::st_intersection(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP))))
         else return(0)
       })
 
@@ -5106,31 +5064,16 @@ shinyServer(function(input, output, session) {
     MixtureMeshBase <- reactive({
       if(input$MixtureDataSimulatedLoaded=="sim"){
         DFsample <- as.data.frame(Mixture.sampling())
-        convexhull <- chull(DFsample[,1:2])
-        convexhull <- c(convexhull, convexhull[1])
-        qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
-        mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
-                                max.edge=c(qloc[1], qloc[2]))
-        sample <- DFsample
       } else if(input$MixtureDataSimulatedLoaded=="load"){
-        DFsample <- datareadSample()
-        if(input$MixtureRasterSPDE=="raster"){
-          rasterSample <- datareadRaster()[sample(1:nrow(datareadRaster()), min(c(50,nrow(datareadRaster())))),1:2]
-          qloc <- quantile(as.vector(dist(rasterSample)),probs=c(0.03,0.3))
-          convexhull <- chull(datareadRaster()[,1:2])
-          convexhull <- c(convexhull, convexhull[1])
-          mesh <- fm_mesh_2d_inla(loc.domain=datareadRaster()[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
-                                  max.edge=c(qloc[1], qloc[2]))
-          sample <- rasterSample
-        } else if(input$MixtureRasterSPDE=="solvecov"){
-          convexhull <- chull(rbind(DFsample[,1:2],datareadRaster()[,1:2]))
-          convexhull <- c(convexhull, convexhull[1])
-          qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
-          mesh <- fm_mesh_2d_inla(loc.domain=rbind(DFsample[,1:2],datareadRaster()[,1:2])[convexhull,], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
-                                  max.edge=c(qloc[1], qloc[2]))
-          sample <- DFsample
-        }
+        DFsample <- as.data.frame(datareadSample())
       }
+      
+      convexhull <- chull(DFsample[,1:2])
+      convexhull <- c(convexhull, convexhull[1])
+      qloc <- quantile(as.vector(dist(DFsample[sample(1:nrow(DFsample),size=min(c(50,nrow(DFsample)))),1:2])),probs=c(0.03,0.3))
+      mesh <- fm_mesh_2d_inla(loc.domain=DFsample[convexhull,1:2], cutoff = qloc[1]/2, offset=c(-0.1, -0.2),
+                              max.edge=c(qloc[1], qloc[2]))
+      sample <- DFsample
       result <- list(mesh=mesh, qloc=qloc, Sample=sample)
       return(result)
     })
@@ -5325,8 +5268,11 @@ shinyServer(function(input, output, session) {
       domain.polys <- Polygons(list(Polygon(ldomain)), '0')
       domainSP <- SpatialPolygons(list(domain.polys))
       w <- sapply(1:length(dmesh), function(i) {
-        if (gIntersects(dmesh[i, ], domainSP))
-          return(gArea(gIntersection(dmesh[i, ], domainSP)))
+        # if (gIntersects(dmesh[i, ], domainSP))
+        #   return(gArea(gIntersection(dmesh[i, ], domainSP)))
+        # else return(0)
+        if (sf::st_intersects(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP), sparse=FALSE))
+          return(sf::st_area(sf::st_intersection(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP))))
         else return(0)
       })
       
