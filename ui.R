@@ -56,6 +56,9 @@ if (!require("viridis", quietly = TRUE)) {
 if (!require("sp", quietly = TRUE)) {
   install.packages("sp")
 }
+if (!require("sf", quietly = TRUE)) {
+  install.packages("sf")
+}
 if (!require("gridExtra", quietly = TRUE)) {
   install.packages("gridExtra")
 }
@@ -76,7 +79,8 @@ library(rintrojs)
 library(patchwork)
 library(viridis)
 library(sp)
-library(rgeos)
+library(sf)
+# library(rgeos)
 library(dplyr)
 library(gridExtra)
 

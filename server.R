@@ -2531,12 +2531,12 @@ shinyServer(function(input, output, session) {
       
       # LGCP mesh operations
       ldomain <- unique(mesh$loc[mesh$segm$int$idx,1:2])
-      dmesh <- mesh.dual(mesh = mesh)
-      domain.polys <- Polygons(list(Polygon(ldomain)), '0')
-      domainSP <- SpatialPolygons(list(domain.polys))
+      dmesh <<- mesh.dual(mesh = mesh)
+      domain.polys <<- Polygons(list(Polygon(ldomain)), '0')
+      domainSP <<- SpatialPolygons(list(domain.polys))
       w <- sapply(1:length(dmesh), function(i) {
-        if (gIntersects(dmesh[i, ], domainSP))
-          return(gArea(gIntersection(dmesh[i, ], domainSP)))
+        if (sf::st_intersects(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP), sparse=FALSE))
+          return(sf::st_area(sf::st_intersection(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP))))
         else return(0)
       })
       
@@ -3826,8 +3826,11 @@ shinyServer(function(input, output, session) {
       domain.polys <- Polygons(list(Polygon(ldomain)), '0')
       domainSP <- SpatialPolygons(list(domain.polys))
       w <- sapply(1:length(dmesh), function(i) {
-        if (gIntersects(dmesh[i, ], domainSP))
-          return(gArea(gIntersection(dmesh[i, ], domainSP)))
+        # if (gIntersects(dmesh[i, ], domainSP))
+        #   return(gArea(gIntersection(dmesh[i, ], domainSP)))
+        # else return(0)
+        if (sf::st_intersects(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP), sparse=FALSE))
+          return(sf::st_area(sf::st_intersection(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP))))
         else return(0)
       })
 
@@ -5265,8 +5268,11 @@ shinyServer(function(input, output, session) {
       domain.polys <- Polygons(list(Polygon(ldomain)), '0')
       domainSP <- SpatialPolygons(list(domain.polys))
       w <- sapply(1:length(dmesh), function(i) {
-        if (gIntersects(dmesh[i, ], domainSP))
-          return(gArea(gIntersection(dmesh[i, ], domainSP)))
+        # if (gIntersects(dmesh[i, ], domainSP))
+        #   return(gArea(gIntersection(dmesh[i, ], domainSP)))
+        # else return(0)
+        if (sf::st_intersects(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP), sparse=FALSE))
+          return(sf::st_area(sf::st_intersection(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP))))
         else return(0)
       })
       
