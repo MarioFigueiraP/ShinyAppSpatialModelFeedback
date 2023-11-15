@@ -482,7 +482,7 @@ body <- dashboardBody(
                   box(
                     status = "info", title = "Custom function", width = 12, solidHeader = TRUE,
                     textInput("formula.eff.bathymetry",
-                      label = "Bathymetry effect formula (b)",
+                      label = "Covariate effect formula (b)",
                       value = "0.3 + 0.5*b + 1.5*(b-mean(b))**3 + rnorm(length(b), 0, 0.01)",
                       placeholder = "0.1+b+b**2"
                     )
