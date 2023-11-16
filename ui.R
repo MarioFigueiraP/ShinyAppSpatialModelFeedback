@@ -217,37 +217,37 @@ body <- dashboardBody(
             HTML("
                     <ul> <strong>Bayesian inference:</strong>
                     <ol>
-                    <li> <i>Bayes' theorem (conditional probability distribution):</i> </li>
-                    <li> <i>Hierarchical model:</i> </li>
-                    <li> <i>Likelihood:</i> </li>
-                    <li> <i>Link function:</i> </li>
-                    <li> <i>Marginal distribution(s):</i> </li>
-                    <li> <i>Mean:</i> </li>
-                    <li> <i>Mode:</i> </li>
-                    <li> <i>Parameter(s):</i> </li>
-                    <li> <i>Posterior distribution:</i> </li>
-                    <li> <i>Posterior predictive distribution:</i> </li>
-                    <li> <i>Prior distribution:</i> </li>
-                    <li> <i>Prior predictive distribution:</i> </li>
+                    <li> <i>Bayes' theorem (conditional probability distribution):</i> A fundamental theorem in probability theory that describes the probability of an event based on prior knowledge of conditions that might be related to the event. It is named after the Reverend Thomas Bayes and provides a way to update probabilities as new evidence or information becomes available. </li>
+                    <li> <i>Hierarchical model:</i> A statistical model that includes nested levels of parameters or random effects. In hierarchical modeling, data are assumed to have a structure that allows for variation at multiple levels, and it is particularly useful when dealing with grouped, clustered or high complex data.</li>
+                    <li> <i>Model parameter(s):</i> The parameters in a statistical model are the coefficients or constants that define the model. They are the values that need to be estimated from the data, and they influence the shape and characteristics of the model. </li>
+                    <li> <i>Likelihood:</i> The likelihood function represents the probability of observing the given data given a particular set of parameter values in a statistical model. It is a key component in Bayesian and frequentist statistical inference. </li>
+                    <li> <i>Link function:</i> In generalized linear models (GLM), the link function describes the relationship between the linear predictor and the mean of the distribution function. It connects the linear combination of predictors to the parameters of the distribution. </li>
+                    <li> <i>Marginal distribution(s):</i> The distribution of one or more variables in a subset of a larger set of variables, obtained by integrating or summing over the other variables. It provides information about the probability distribution of a subset of variables, ignoring the values of the other variables. </li>
+                    <li> <i>Mean:</i> A measure of central tendency that represents the average value of a set of data points. It is calculated by summing up all values and dividing by the number of observations. </li>
+                    <li> <i>Mode:</i> The mode of a distribution is the value that occurs most frequently. In a dataset, it is the data point with the highest frequency. </li>
+                    <li> <i>Prior distribution:</i> The prior distribution represents the initial beliefs or knowledge about the parameters before observing the data. It is an essential component in Bayesian statistics and is updated to the posterior distribution through Bayes' theorem. </li>
+                    <li> <i>Prior predictive distribution:</i> The prior predictive distribution incorporates uncertainty from the prior distribution to generate predictions before observing any data. It represents the range of possible outcomes based on the initial beliefs about the parameters. </li>
+                    <li> <i>Posterior distribution:</i> In Bayesian statistics, the posterior distribution is the updated probability distribution of the parameters after taking into consideration the observed data and the prior distribution. It is obtained using Bayes' theorem. </li>
+                    <li> <i>Posterior predictive distribution:</i> This distribution combines the information from the likelihood and the posterior distribution to make predictions for future observations. It reflects the uncertainty in predictions by considering both the uncertainty in parameters and the variability in the data. </li>
                     </ol>
                     </ul>
                     
                     <ul> <strong>INLA basic elements:</strong>
                     <ol>
-                    <li> <i>Aproximation strategy:</i> </li>
+                    <li> <i>Aproximation strategy:</i> INLA provides three distinct methods for approximating non-Gaussian data. These methods include a straightforward Gaussian approximation, a simplified Laplace approach—which is essentially a Gaussian approximation refined through spline correction—and the Laplace approximation, involving the utilization of two nested Gaussian approximations. </li>
                     <li> <i>Integration strategy:</i> </li>
-                    <li> <i>Latent field:</i> </li>
-                    <li> <i>Gaussian Field (GMRF):</i> </li>
-                    <li> <i>Gaussian Markov Random Field (GMRF):</i> </li>
+                    <li> <i>Latent field:</i> A latent field refers to an unobserved, underlying random field that is part of the statistical model. In INLA, the latent field represents the unobservable values or processes of interest. </li>
+                    <li> <i>Gaussian Field (GF):</i> A Gaussian field is a type of random field where the distribution of the values at any finite collection of points follows a multivariate normal (Gaussian) distribution. Gaussian fields are commonly used in spatial statistics and geostatistics to model spatial variability or dependence. </li>
+                    <li> <i>Gaussian Markov Random Field (GMRF):</i> A Gaussian Markov Random Field (GMRF) is a type of random field where the conditional distribution of each random variable, given the values of all other variables, is Gaussian and the variables are associated with a graph structure. GMRFs are used in spatial statistics and Bayesian modeling to represent spatial dependence in a computationally efficient manner, often making use of sparse precision matrices. The 'Markov' aspect implies that the conditional independence structure is defined by a Markov property on the underlying graph. </li>
                     </ol>
                     </ul>
                     
                     <ul> <strong>INLA spatial approach:</strong>
                     <ol>
-                    <li> <i>Finite Element Method (FEM):</i> </li>
-                    <li> <i>Matérn covariance function:</i> </li>
-                    <li> <i>Mesh:</i> </li>
-                    <li> <i>Stochastic Partial Differential Equation (SPDE)</i>: </li>
+                    <li> <i>Finite Element Method (FEM):</i> A numerical technique for finding approximate solutions to boundary value problems for partial differential equations. It involves subdividing a complex system into smaller, simpler parts called finite elements. The behavior of each element is then described by a set of mathematical equations, and the solutions are combined to approximate the behavior of the entire system. </li>
+                    <li> <i>Matérn covariance function:</i> A mathematical function commonly used in spatial statistics and geostatistics to model the correlation or covariance between spatial data points. The Matérn covariance function is characterized by a smoothness parameter that influences the smoothness of the resulting spatial process. </li>
+                    <li> <i>Mesh:</i> In the context of the Integrated Nested Laplace Approximation (INLA), a mesh refers to a discretization of the spatial domain. The mesh is used to represent the spatial structure of the data and is essential for the computational aspects of INLA. </li>
+                    <li> <i>Stochastic Partial Differential Equation (SPDE)</i>: A type of partial differential equation where one or more of the parameters or coefficients are subject to random variations. SPDEs are often used in the modeling of random fields and spatial processes. They provide a framework for describing the behavior of systems that exhibit both spatial variability and randomness. The use of SPDEs is common in Bayesian spatial statistics and geostatistics. </li>
                     </ol>
                     </ul>
                          
