@@ -855,15 +855,32 @@ shinyServer(function(input, output, session) {
     
     # Server_IndependentModelling_Section ----
     
+    observe({
+      output$UserResponseInd <- renderUI({
+        tagList(
+          selectInput(inputId="UserResponseInd",
+                             label="Select Response Variable",
+                             choices=IndCheckBoxNames(),
+                             selected=c()
+          ),
+          if(input$SelectIndFamily=="binomial"){
+            selectInput(inputId="UserResponseTrialsInd",
+                        label="Select Trials variable",
+                        choices=IndCheckBoxNames(),
+                        selected=c()
+            )
+          }
+        )
+      })
+    })
+    
     IndCheckBoxNames <- function(){
       if(input$IndDataSimulatedLoaded=="load"){
         DF <- as.data.frame(datareadSample())
-        if(input$SelectIndFamily=="binomial"){DFnames <- names(DF)[c(5:ncol(DF))]}
-        else{DFnames <- names(DF)[c(4:ncol(DF))]}
       } else if(input$IndDataSimulatedLoaded=="sim"){
-        DF <- Ind.sampling()
-        DFnames <- names(DF)[c(4)]
+        DF <- as.data.frame(Ind.sampling())
       }
+      DFnames <- names(DF)[c(3:ncol(DF))]
       return(DFnames)
     }
     
@@ -1595,7 +1612,10 @@ shinyServer(function(input, output, session) {
       
       ### Stacks of the geostatistical and prediction layers ====
       
-      ResponseVariable <- DFsample[,3]
+      ResponseVariable <- DFsample[,input$UserResponseInd]
+      if(input$SelectIndFamily=="binomial"){
+        Trials <- DFsample[,input$UserResponseTrialsInd]
+      }
       
       A_inf_tot <- c(A.inf,1)
       if(length(A_Inf.spde1)>0){
@@ -1611,19 +1631,28 @@ shinyServer(function(input, output, session) {
         }
       }
       
-      Inf.geo.stack <- inla.stack(data=list(y=ResponseVariable),
+      Inf.geo.stack <- inla.stack(data=
+                                    if(input$SelectIndFamily=="binomial"){
+                                      list(y=ResponseVariable, Ntrials=Trials)
+                                    }else{
+                                      list(y=ResponseVariable)
+                                    },
                                    A=A_inf_tot,
                                    effects=Inf.geo.effects.list,
                                    tag="Inference_geo")
       
-      Pred.geo.stack <- inla.stack(data=list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=1)),
+      Pred.geo.stack <- inla.stack(data=
+                                     if(input$SelectIndFamily=="binomial"){
+                                       list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=1), Ntrials=rep(1,nrow(A.geo.pred)))
+                                     }else{
+                                       list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=1))
+                                     },
                                     A=A_pred_tot,
                                     effects=Pred.geo.effects.list,
                                     tag="Prediction_geo")
       
       Total.stack <- inla.stack(Inf.geo.stack, Pred.geo.stack)
-      status.stacks <- "ok"
-      
+
       ### INLA model ====
       
       formula_inla <- as.formula(formula_mod)
@@ -1662,15 +1691,16 @@ shinyServer(function(input, output, session) {
         controlINLA <- list()
       }
       
-      Ind.model <- inla(formula=formula_inla, family = input$SelectIndFamily,
-                          data = inla.stack.data(Total.stack),
-                          control.inla = controlINLA,
-                          control.predictor = list(A = inla.stack.A(Total.stack), compute = TRUE, link = 1),
-                          control.family = controlFamily,
-                          control.mode = controlModeTheta,
-                          control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),
-                          inla.mode=input$INLAModeInd,
-                          verbose=FALSE)
+      Ind.model <- inla(formula=formula_inla, family = if(input$SelectIndFamily=="bernoulli"){"binomial"}else{input$SelectIndFamily},
+                        data = inla.stack.data(Total.stack),
+                        Ntrials = if(input$SelectIndFamily=="binomial"){inla.stack.data(Total.stack)$Ntrials}else{NULL},
+                        control.inla = controlINLA,
+                        control.predictor = list(A = inla.stack.A(Total.stack), compute = TRUE, link = 1),
+                        control.family = controlFamily,
+                        control.mode = controlModeTheta,
+                        control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),
+                        inla.mode=input$INLAModeInd,
+                        verbose=FALSE)
       
       index.pred <- inla.stack.index(Total.stack, "Prediction_geo")$data
       DFpred <- data.frame(Latitude=xy.pred[,1], Longitude=xy.pred[,2])
@@ -2531,9 +2561,9 @@ shinyServer(function(input, output, session) {
       
       # LGCP mesh operations
       ldomain <- unique(mesh$loc[mesh$segm$int$idx,1:2])
-      dmesh <<- mesh.dual(mesh = mesh)
-      domain.polys <<- Polygons(list(Polygon(ldomain)), '0')
-      domainSP <<- SpatialPolygons(list(domain.polys))
+      dmesh <- mesh.dual(mesh = mesh)
+      domain.polys <- Polygons(list(Polygon(ldomain)), '0')
+      domainSP <- SpatialPolygons(list(domain.polys))
       w <- sapply(1:length(dmesh), function(i) {
         if (sf::st_intersects(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP), sparse=FALSE))
           return(sf::st_area(sf::st_intersection(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP))))
@@ -2880,8 +2910,6 @@ shinyServer(function(input, output, session) {
       }
       
       ### Stacks of the geostatistical, Lgcp and prediction layers ====
-      
-      ResponseVariable <- DFsample[,3]
       
       A_inf_tot <- c(A.inf,1)
       if(length(A_Inf.spde1)>0){
@@ -3375,14 +3403,31 @@ shinyServer(function(input, output, session) {
     PrefCheckBoxNames <- function(){
       if(input$PrefDataSimulatedLoaded=="load"){
         DF <- as.data.frame(datareadSample())
-        if(input$SelectPrefFamily=="binomial"){DFnames <- names(DF)[c(5:ncol(DF))]}
-        else{DFnames <- names(DF)[c(4:ncol(DF))]}
       } else if(input$PrefDataSimulatedLoaded=="sim"){
-        DF <- Pref.sampling()
-        DFnames <- names(DF)[c(4)]
+        DF <- as.data.frame(Pref.sampling())
       }
+      DFnames <- names(DF)[c(3:ncol(DF))]
       return(DFnames)
     }
+    
+    observe({
+      output$UserResponsePref <- renderUI({
+        tagList(
+          selectInput(inputId="UserResponsePref",
+                      label="Select Response Variable",
+                      choices=PrefCheckBoxNames(),
+                      selected=c()
+          ),
+          if(input$SelectPrefFamily=="binomial"){
+            selectInput(inputId="UserResponseTrialsPref",
+                        label="Select Trials variable",
+                        choices=PrefCheckBoxNames(),
+                        selected=c()
+            )
+          }
+        )
+      })
+    })
     
     observe({
       output$checkBoxPrefDataFrame <- renderUI({
@@ -4285,7 +4330,10 @@ shinyServer(function(input, output, session) {
 
       ### Stacks of the geostatistical, Pref and prediction layers ====
 
-      ResponseVariable <- DFsample[,3]
+      ResponseVariable <- DFsample[,input$UserResponsePref]
+      if(input$SelectPrefFamily=="binomial"){
+        Trials <- DFsample[,input$UserResponseTrialsPref]
+      }
 
       A_inf_tot <- c(A.inf,1)
       if(length(A_Inf.spde1)>0){
@@ -4301,13 +4349,23 @@ shinyServer(function(input, output, session) {
         }
       }
 
-      Inf.geo.stack <- inla.stack(data=list(y=cbind(c(rep(NA, nv),ResponseVariable), NA), e=rep(0,times=nv+n)),
+      Inf.geo.stack <- inla.stack(data=
+                                    if(input$SelectPrefFamily=="binomial"){
+                                      list(y=cbind(c(rep(NA, nv),ResponseVariable), NA), e=rep(0,times=nv+n), Ntrials=c(rep(NA, nv),Trials))
+                                    }else{
+                                      list(y=cbind(c(rep(NA, nv),ResponseVariable), NA), e=rep(0,times=nv+n))
+                                    },
                                    A=A_inf_tot,
                                    effects=Inf.geo.effects.list,
                                    tag="Inference_geo"
       )
 
-      Pred.geo.stack <- inla.stack(data=list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=2)),
+      Pred.geo.stack <- inla.stack(data=
+                                     if(input$SelectIndFamily=="binomial"){
+                                       list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=2), Ntrials=rep(1,nrow(A.geo.pred)))
+                                     }else{
+                                       list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=2))
+                                     },
                                     A=A_pred_tot,
                                     effects=Pred.geo.effects.list,
                                     tag="Prediction_geo")
@@ -4372,16 +4430,17 @@ shinyServer(function(input, output, session) {
         controlINLA <- list()
       }
 
-      Pref.model <- inla(formula=formula_inla, family = c(input$SelectPrefFamily,'poisson'),
-                             data = inla.stack.data(Total.stack),
-                             E = inla.stack.data(Total.stack)$e,
-                             control.inla = controlINLA,
-                             control.predictor = list(A = inla.stack.A(Total.stack), compute = TRUE, link = 1),
-                             control.family = controlFamily,
-                             control.mode = controlModeTheta,
-                             control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),
-                             inla.mode=input$INLAModePref,
-                             verbose=FALSE)
+      Pref.model <- inla(formula=formula_inla, family = c(if(input$SelectPrefFamily=="bernoulli"){"binomial"}else{input$SelectPrefFamily},'poisson'),
+                         data = inla.stack.data(Total.stack),
+                         Ntrials = if(input$SelectPrefFamily=="binomial"){inla.stack.data(Total.stack)$Ntrials}else{NULL},
+                         E = inla.stack.data(Total.stack)$e,
+                         control.inla = controlINLA,
+                         control.predictor = list(A = inla.stack.A(Total.stack), compute = TRUE, link = 1),
+                         control.family = controlFamily,
+                         control.mode = controlModeTheta,
+                         control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),
+                         inla.mode=input$INLAModePref,
+                         verbose=FALSE)
 
       index.pred <- inla.stack.index(Total.stack, "Prediction_geo")$data
       DFpred <- data.frame(Latitude=xy.pred[,1], Longitude=xy.pred[,2])
@@ -4798,14 +4857,31 @@ shinyServer(function(input, output, session) {
     MixtureCheckBoxNames <- function(){
       if(input$MixtureDataSimulatedLoaded=="load"){
         DF <- as.data.frame(datareadSample())
-        if(input$SelectMixtureFamily=="binomial"){DFnames <- names(DF)[c(5:ncol(DF))]}
-        else{DFnames <- names(DF)[c(4:ncol(DF))]}
       } else if(input$MixtureDataSimulatedLoaded=="sim"){
         DF <- Mixture.sampling()$MixtureSample
-        DFnames <- names(DF)[c(4,5)]
       }
+      DFnames <- names(DF)[c(3:ncol(DF))]
       return(DFnames)
     }
+    
+    observe({
+      output$UserResponseMixture <- renderUI({
+        tagList(
+          selectInput(inputId="UserResponseMixture",
+                      label="Select Response Variable",
+                      choices=MixtureCheckBoxNames(),
+                      selected=c()
+          ),
+          if(input$SelectMixtureFamily=="binomial"){
+            selectInput(inputId="UserResponseTrialsMixture",
+                        label="Select Trials variable",
+                        choices=MixtureCheckBoxNames(),
+                        selected=c()
+            )
+          }
+        )
+      })
+    })
     
     observe({
       output$checkBoxMixtureDataFrame <- renderUI({
@@ -5735,7 +5811,11 @@ shinyServer(function(input, output, session) {
       
       ### Stacks of the geostatistical, mixtures and prediction layers ====
       
-      ResponseVariable <- DFsample[,3]
+      ResponseVariable <- DFsample[,input$UserResponseMixture]
+      if(input$SelectMixtureFamily=="binomial"){
+        Trials <- DFsample[,input$UserResponseTrialsMixture]
+      }
+      
       
       A_inf_tot <- c(A.inf,1)
       if(length(A_Inf.spde1)>0){
@@ -5751,13 +5831,23 @@ shinyServer(function(input, output, session) {
         }
       } 
       
-      Inf.geo.stack <- inla.stack(data=list(y=cbind(c(rep(NA, nv),ResponseVariable), NA), e=rep(0,times=nv+n)),
+      Inf.geo.stack <- inla.stack(data=
+                                    if(input$SelectMixtureFamily=="binomial"){
+                                      list(y=cbind(c(rep(NA, nv),ResponseVariable), NA), e=rep(0,times=nv+n), Ntrials=c(rep(NA, nv),Trials))
+                                    }else{
+                                      list(y=cbind(c(rep(NA, nv),ResponseVariable), NA), e=rep(0,times=nv+n))
+                                    },
                                   A=A_inf_tot,
                                   effects=Inf.geo.effects.list,
                                   tag="Inference_geo"
                                   )
       
-      Pred.geo.stack <- inla.stack(data=list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=2)),
+      Pred.geo.stack <- inla.stack(data=
+                                     if(input$SelectMixtureFamily=="binomial"){
+                                       list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=2), Ntrials=rep(1,nrow(A.geo.pred)))
+                                     }else{
+                                       list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=2))
+                                     },
                                    A=A_pred_tot,
                                    effects=Pred.geo.effects.list,
                                    tag="Prediction_geo")
@@ -5822,8 +5912,9 @@ shinyServer(function(input, output, session) {
         controlINLA <- list()
       }
 
-      Mixture.model <- inla(formula=formula_inla, family = c(input$SelectMixtureFamily,'poisson'),
+      Mixture.model <- inla(formula=formula_inla, family = c(if(input$SelectPrefFamily=="bernoulli"){"binomial"}else{input$SelectPrefFamily},'poisson'),
                             data = inla.stack.data(Total.stack),
+                            Ntrials = if(input$SelectMixtureFamily=="binomial"){inla.stack.data(Total.stack)$Ntrials}else{NULL},
                             E = inla.stack.data(Total.stack)$e,
                             control.inla = controlINLA,
                             control.predictor = list(A = inla.stack.A(Total.stack), compute = TRUE, link = 1),
