@@ -100,42 +100,46 @@ shinyServer(function(input, output, session) {
     }
     
     mesh.dual <- function(mesh){
-        if (mesh$manifold=='R2'){
-            ce <- t(sapply(1:nrow(mesh$graph$tv), function(i)
-                colMeans(mesh$loc[mesh$graph$tv[i, ], 1:2])))
-            library(parallel)
-            pls <- mclapply(1:mesh$n, function(i) {
-                p <- unique(Reduce('rbind', lapply(1:3, function(k) {
-                    j <- which(mesh$graph$tv[,k]==i)
-                    if (length(j)>0)
-                        return(rbind(ce[j, , drop=FALSE],
-                                     cbind(mesh$loc[mesh$graph$tv[j, k], 1] +
-                                               mesh$loc[mesh$graph$tv[j, c(2:3,1)[k]], 1],
-                                           mesh$loc[mesh$graph$tv[j, k], 2] +
-                                               mesh$loc[mesh$graph$tv[j, c(2:3,1)[k]], 2])/2))
-                    else return(ce[j, , drop=FALSE])
-                })))
-                j1 <- which(mesh$segm$bnd$idx[,1]==i)
-                j2 <- which(mesh$segm$bnd$idx[,2]==i)
-                if ((length(j1)>0) | (length(j2)>0)) {
-                    p <- unique(rbind(mesh$loc[i, 1:2], p,
-                                      mesh$loc[mesh$segm$bnd$idx[j1, 1], 1:2]/2 +
-                                          mesh$loc[mesh$segm$bnd$idx[j1, 2], 1:2]/2,
-                                      mesh$loc[mesh$segm$bnd$idx[j2, 1], 1:2]/2 +
-                                          mesh$loc[mesh$segm$bnd$idx[j2, 2], 1:2]/2))
-                    yy <- p[,2]-mean(p[,2])/2-mesh$loc[i, 2]/2
-                    xx <- p[,1]-mean(p[,1])/2-mesh$loc[i, 1]/2
-                }
-                else {
-                    yy <- p[,2]-mesh$loc[i, 2]
-                    xx <- p[,1]-mesh$loc[i, 1]
-                }
-                Polygon(p[order(atan2(yy,xx)), ])
-            })
-            return(SpatialPolygons(lapply(1:mesh$n, function(i)
-                Polygons(list(pls[[i]]), i))))
-        }
-        else stop("It only works for R2!")
+      if (mesh$manifold=='R2'){
+        ce <- t(sapply(1:nrow(mesh$graph$tv), function(i)
+          colMeans(mesh$loc[mesh$graph$tv[i, ], 1:2])))
+        library(parallel)
+        pls <- mclapply(1:mesh$n, function(i) {
+          p <- unique(Reduce('rbind', lapply(1:3, function(k) {
+            j <- which(mesh$graph$tv[,k]==i)
+            if (length(j)>0)
+              return(rbind(ce[j, , drop=FALSE],
+                           cbind(mesh$loc[mesh$graph$tv[j, k], 1] +
+                                   mesh$loc[mesh$graph$tv[j, c(2:3,1)[k]], 1],
+                                 mesh$loc[mesh$graph$tv[j, k], 2] +
+                                   mesh$loc[mesh$graph$tv[j, c(2:3,1)[k]], 2])/2))
+            else return(ce[j, , drop=FALSE])
+          })))
+          j1 <- which(mesh$segm$bnd$idx[,1]==i)
+          j2 <- which(mesh$segm$bnd$idx[,2]==i)
+          if ((length(j1)>0) | (length(j2)>0)) {
+            p <- unique(rbind(mesh$loc[i, 1:2], p,
+                              mesh$loc[mesh$segm$bnd$idx[j1, 1], 1:2]/2 +
+                                mesh$loc[mesh$segm$bnd$idx[j1, 2], 1:2]/2,
+                              mesh$loc[mesh$segm$bnd$idx[j2, 1], 1:2]/2 +
+                                mesh$loc[mesh$segm$bnd$idx[j2, 2], 1:2]/2))
+            yy <- p[,2]-mean(p[,2])/2-mesh$loc[i, 2]/2
+            xx <- p[,1]-mean(p[,1])/2-mesh$loc[i, 1]/2
+          }
+          else {
+            yy <- p[,2]-mesh$loc[i, 2]
+            xx <- p[,1]-mesh$loc[i, 1]
+          }
+          p <- p[order(atan2(yy,xx)),]
+          return(rbind(p,p[1,]))
+        })
+        return(
+          lapply(1:mesh$n, function(i)
+            st_polygon(x=list(pls[[i]]))
+          )
+        )
+      }
+      else stop("It only works for R2!")
     }
     
     # Server_Presentation_Section ----
@@ -159,10 +163,21 @@ shinyServer(function(input, output, session) {
     }
 
     ggplotMeshSim <- function(){
+      x0 <- range(meshSim()$lattice0$x)
+      y0 <- range(meshSim()$lattice0$y)
+      study.domain = st_polygon(x=list(matrix(c(x0[1], y0[1],
+                                 x0[1], y0[2],
+                                 x0[2], y0[2],
+                                 x0[2], y0[1],
+                                 x0[1], y0[1]
+                                 ), ncol=2, byrow=TRUE)))
+      ggplot_mesh <- 
         ggplot() + gg(meshSim()$mesh)+theme_bw() + xlab("Latitude") + ylab("Longitude") +
-            ggtitle("Mesh over the study region") +
-            theme(plot.title=element_text(color = "black", size = 16,
-                                          face = "bold", hjust = 0.5))
+            # ggtitle("Mesh over the study region") +
+        geom_sf(data=study.domain, mapping=aes(), linewidth=2, alpha=0.5, color="blue") +
+        labs(title = "Mesh over the <span style = 'color: blue;'>study region</span>") +
+        theme(plot.title = element_markdown(hjust=0.5, face="bold", size=16))
+      return(ggplot_mesh)
     }
 
     downloadFile(
@@ -663,11 +678,11 @@ shinyServer(function(input, output, session) {
     
     datareadSample <- function(){
         file <- file.sample.read()
-        ext <- tools::file_ext(file$datapath)
+        ext <<- tools::file_ext(file$datapath)
         req(file)
-        validate(need(ext == c("csv","rds"), "Please upload a csv or rds file"))
+        # validate(need(ext == c("csv","rds"), "Please upload a csv or rds file"))
         if(ext=="csv"){file.read <- read.csv(file$datapath)}
-        else file.read <- readRDS(file$datapath)
+        else{file.read <- readRDS(file$datapath)}
         return(file.read)
         # return(as.data.frame(file.read))
     }
@@ -855,15 +870,32 @@ shinyServer(function(input, output, session) {
     
     # Server_IndependentModelling_Section ----
     
+    observe({
+      output$UserResponseInd <- renderUI({
+        tagList(
+          selectInput(inputId="UserResponseInd",
+                             label="Select Response Variable",
+                             choices=IndCheckBoxNames(),
+                             selected=c()
+          ),
+          if(input$SelectIndFamily=="binomial"){
+            selectInput(inputId="UserResponseTrialsInd",
+                        label="Select Trials variable",
+                        choices=IndCheckBoxNames(),
+                        selected=c()
+            )
+          }
+        )
+      })
+    })
+    
     IndCheckBoxNames <- function(){
       if(input$IndDataSimulatedLoaded=="load"){
         DF <- as.data.frame(datareadSample())
-        if(input$SelectIndFamily=="binomial"){DFnames <- names(DF)[c(5:ncol(DF))]}
-        else{DFnames <- names(DF)[c(4:ncol(DF))]}
       } else if(input$IndDataSimulatedLoaded=="sim"){
-        DF <- Ind.sampling()
-        DFnames <- names(DF)[c(4)]
+        DF <- as.data.frame(Ind.sampling())
       }
+      DFnames <- names(DF)[c(3:ncol(DF))]
       return(DFnames)
     }
     
@@ -890,6 +922,13 @@ shinyServer(function(input, output, session) {
                     selectInput(inputId=paste0("IndEffectCov",i), label=tags$span(style="color: blue; font-weight: bold;", paste(input$UserComponentsInd[i],"Effect")) ,
                                 choices = list("Linear (or reference level)" = "linear", "Random Walk 1" = "rw1", "Random Walk 2" = "rw2", "SPDE 1" = "spde1", "IID"="iid"),
                                 selected = "linear"),
+                    awesomeCheckboxGroup(
+                      inputId = paste0("IndCenteringScalingCov",i),
+                      label = paste("Centering and scaling:", input$UserComponentsInd[i]), 
+                      choices = c("Centering", "Scaling"), selected = c(),
+                      inline = TRUE, 
+                      status = "info"
+                    ),
                     conditionalPanel(condition=paste0("input.IndEffectCov",i,"=='rw1'||","input.IndEffectCov",i,"=='rw2'||","input.IndEffectCov",i,"=='spde1'"),
                                      numericInput(inputId=paste0("IndEffectCovNodes",i),
                                                   label="Number of nodes",
@@ -943,6 +982,13 @@ shinyServer(function(input, output, session) {
                       selectInput(inputId=paste0("IndEffectCov",i), label=tags$span(style="color: blue; font-weight: bold;", paste(input$UserComponentsInd[i],"Effect")) ,
                                   choices = list("Linear (or reference level)" = "linear", "Random Walk 1" = "rw1", "Random Walk 2" = "rw2", "SPDE 1" = "spde1", "IID"="iid"),
                                   selected = "linear"),
+                      awesomeCheckboxGroup(
+                        inputId = paste0("IndCenteringScalingCov",i),
+                        label = paste("Centering and scaling:", input$UserComponentsInd[i]), 
+                        choices = c("Centering", "Scaling"), selected = c(),
+                        inline = TRUE, 
+                        status = "info"
+                      ),
                       conditionalPanel(condition=paste0("input.IndEffectCov",i,"=='rw1'||","input.IndEffectCov",i,"=='rw2'||","input.IndEffectCov",i,"=='spde1'"),
                                        numericInput(inputId=paste0("IndEffectCovNodes",i),
                                                     label="Number of nodes",
@@ -1311,6 +1357,15 @@ shinyServer(function(input, output, session) {
       
       for(i in seq_along(variablesChosenUser)){
         if(!is.character(DFsample[,variablesChosenUser[i]])){
+          ### Centering and scaling of the chosen variable
+          if("Centering" %in% eval(parse(text=paste0("input$IndCenteringScalingCov",i)))){
+            DFsample[,variablesChosenUser[i]] <- DFsample[,variablesChosenUser[i]] - mean(DFsample[,variablesChosenUser[i]])
+          } 
+          if("Scaling" %in% eval(parse(text=paste0("input$IndCenteringScalingCov",i)))){
+            DFsample[,variablesChosenUser[i]] <- DFsample[,variablesChosenUser[i]] / sd(DFsample[,variablesChosenUser[i]])
+          }
+          ################################################
+          
           prior.range.cov <- c(mean(c(diff(range(mesh$loc[mesh$segm$int$idx[,1],1])),diff(range(mesh$loc[mesh$segm$int$idx[,1],2]))))/5, 0.5)
           prior.sigma.cov <- c(1,0.5)
           spde.cov <- inla.spde2.pcmatern(mesh, prior.range = prior.range.cov, prior.sigma = prior.sigma.cov, alpha=2)
@@ -1595,7 +1650,10 @@ shinyServer(function(input, output, session) {
       
       ### Stacks of the geostatistical and prediction layers ====
       
-      ResponseVariable <- DFsample[,3]
+      ResponseVariable <- DFsample[,input$UserResponseInd]
+      if(input$SelectIndFamily=="binomial"){
+        Trials <- DFsample[,input$UserResponseTrialsInd]
+      }
       
       A_inf_tot <- c(A.inf,1)
       if(length(A_Inf.spde1)>0){
@@ -1611,19 +1669,28 @@ shinyServer(function(input, output, session) {
         }
       }
       
-      Inf.geo.stack <- inla.stack(data=list(y=ResponseVariable),
+      Inf.geo.stack <- inla.stack(data=
+                                    if(input$SelectIndFamily=="binomial"){
+                                      list(y=ResponseVariable, Ntrials=Trials)
+                                    }else{
+                                      list(y=ResponseVariable)
+                                    },
                                    A=A_inf_tot,
                                    effects=Inf.geo.effects.list,
                                    tag="Inference_geo")
       
-      Pred.geo.stack <- inla.stack(data=list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=1)),
+      Pred.geo.stack <- inla.stack(data=
+                                     if(input$SelectIndFamily=="binomial"){
+                                       list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=1), Ntrials=rep(1,nrow(A.geo.pred)))
+                                     }else{
+                                       list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=1))
+                                     },
                                     A=A_pred_tot,
                                     effects=Pred.geo.effects.list,
                                     tag="Prediction_geo")
       
       Total.stack <- inla.stack(Inf.geo.stack, Pred.geo.stack)
-      status.stacks <- "ok"
-      
+
       ### INLA model ====
       
       formula_inla <- as.formula(formula_mod)
@@ -1662,15 +1729,56 @@ shinyServer(function(input, output, session) {
         controlINLA <- list()
       }
       
-      Ind.model <- inla(formula=formula_inla, family = input$SelectIndFamily,
-                          data = inla.stack.data(Total.stack),
-                          control.inla = controlINLA,
-                          control.predictor = list(A = inla.stack.A(Total.stack), compute = TRUE, link = 1),
-                          control.family = controlFamily,
-                          control.mode = controlModeTheta,
-                          control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),
-                          inla.mode=input$INLAModeInd,
-                          verbose=FALSE)
+      
+      # Save data to download it and create reproducible framework
+      
+      family_inla <- if(input$SelectIndFamily=="bernoulli"){"binomial"}else{input$SelectIndFamily}
+      Ntrials_inla <- if(input$SelectIndFamily=="binomial"){inla.stack.data(Total.stack)$Ntrials}else{NULL}
+      control_inla.mode <- input$INLAModeInd
+      
+      if(input$saveInd==TRUE){
+        list_spde <- list()
+        for(i in c(which("spde" == ls()), which(str_detect(ls(),  "spde1d_")))){
+          list_spde[[ls()[i]]] <- eval(parse(text=ls()[i]))
+        }
+        
+        code.test <- paste("inla(formula=ListAppShiny_IndModel$formula_inla, family = ListAppShiny_IndModel$family_inla,",
+                           "Ntrials = ListAppShiny_IndModel$Ntrials_inla,",
+                           "data = inla.stack.data(ListAppShiny_IndModel$Total.stack),",
+                           "control.predictor = list(A = inla.stack.A(ListAppShiny_IndModel$Total.stack), compute = TRUE, link = 1),",
+                           "control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),",
+                           "control.inla=ListAppShiny_IndModel$controlINLA, control.family=ListAppShiny_IndModel$controlFamily,",
+                           "control.mode=ListAppShiny_IndModel$controlModeTheta,",
+                           "inla.mode=ListAppShiny_IndModel$control_inla.mode,",
+                           "verbose=FALSE)")
+        
+        ListAppShiny_IndModel <- list(family_inla=family_inla, formula_inla=formula_inla, Ntrials_inla=Ntrials_inla,
+                                      Total.stack=Total.stack, mesh=mesh, list_spde=list_spde,
+                                      control.inla=controlINLA, controlFamily=controlFamily, controlModeTheta=controlModeTheta,
+                                      control_inla.mode=control_inla.mode,
+                                      code.test=code.test)
+        test_save <- try(
+          saveRDS(object = ListAppShiny_IndModel, file=paste0(input$IndSavePath, input$IndSaveName)),
+          silent=TRUE
+        )
+        if(class(test_save)!="try-error"){
+          showNotification(ui=paste0("The model information is being saved and stored as ", input$IndSavePath, input$IndSaveName), duration = NULL)
+        } else{
+          showNotification(ui=paste("An error happened while saving the model."), duration = NULL)
+        }
+      }
+      
+      
+      Ind.model <- inla(formula=formula_inla, family = family_inla,
+                        data = inla.stack.data(Total.stack),
+                        Ntrials = Ntrials_inla,
+                        control.inla = controlINLA,
+                        control.predictor = list(A = inla.stack.A(Total.stack), compute = TRUE, link = 1),
+                        control.family = controlFamily,
+                        control.mode = controlModeTheta,
+                        control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),
+                        inla.mode = control_inla.mode,
+                        verbose=FALSE)
       
       index.pred <- inla.stack.index(Total.stack, "Prediction_geo")$data
       DFpred <- data.frame(Latitude=xy.pred[,1], Longitude=xy.pred[,2])
@@ -1741,7 +1849,6 @@ shinyServer(function(input, output, session) {
         colnames(DFInter)[1:2] <- colnames(DF)[1:2]
         DF <- DFInter
       }
-      
       return(DF)
     })
     
@@ -2139,6 +2246,13 @@ shinyServer(function(input, output, session) {
                                                   value=10, min=1, step=1
                                      )
                     ),
+                    awesomeCheckboxGroup(
+                      inputId = paste0("LgcpCenteringScalingCov",i),
+                      label = paste("Centering and scaling:", input$UserComponentsLgcp[i]), 
+                      choices = c("Centering", "Scaling"), selected = c(),
+                      inline = TRUE, 
+                      status = "info"
+                    ),
                     radioGroupButtons(
                       inputId = paste0("LgcpEffectCustomPrior",i),
                       label = "Custom Prior",
@@ -2191,6 +2305,13 @@ shinyServer(function(input, output, session) {
                                                     label="Number of nodes",
                                                     value=10, min=1, step=1
                                        )
+                      ),
+                      awesomeCheckboxGroup(
+                        inputId = paste0("LgcpCenteringScalingCov",i),
+                        label = paste("Centering and scaling:", input$UserComponentsLgcp[i]), 
+                        choices = c("Centering", "Scaling"), selected = c(),
+                        inline = TRUE, 
+                        status = "info"
                       ),
                       radioGroupButtons(
                         inputId = paste0("LgcpEffectCustomPrior",i),
@@ -2531,12 +2652,12 @@ shinyServer(function(input, output, session) {
       
       # LGCP mesh operations
       ldomain <- unique(mesh$loc[mesh$segm$int$idx,1:2])
-      dmesh <<- mesh.dual(mesh = mesh)
-      domain.polys <<- Polygons(list(Polygon(ldomain)), '0')
-      domainSP <<- SpatialPolygons(list(domain.polys))
+      ldomain <- rbind(ldomain, ldomain[1,])
+      dmesh <- mesh.dual(mesh = mesh)
+      domainPolygon <- st_polygon(x=list(ldomain))
       w <- sapply(1:length(dmesh), function(i) {
-        if (sf::st_intersects(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP), sparse=FALSE))
-          return(sf::st_area(sf::st_intersection(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP))))
+        if (sf::st_intersects(dmesh[[i]], domainPolygon, sparse=FALSE))
+          return(sf::st_area(sf::st_intersection(dmesh[[i]], domainPolygon)))
         else return(0)
       })
       
@@ -2742,6 +2863,14 @@ shinyServer(function(input, output, session) {
         } else{
           j <- which(variablesChosen[i]==variablesChosenUser)
           if(!is.character(DFsample[,variablesChosenUser[j]])){
+            ### Centering and scaling of the chosen variable
+            if("Centering" %in% eval(parse(text=paste0("input$LgcpCenteringScalingCov",i)))){
+              DFsample[,variablesChosenUser[i]] <- DFsample[,variablesChosenUser[i]] - mean(DFsample[,variablesChosenUser[i]])
+            } 
+            if("Scaling" %in% eval(parse(text=paste0("input$LgcpCenteringScalingCov",i)))){
+              DFsample[,variablesChosenUser[i]] <- DFsample[,variablesChosenUser[i]] / sd(DFsample[,variablesChosenUser[i]])
+            }
+            ################################################
             if(eval(parse(text=paste0("input$LgcpEffectCov",j)))=="rw1"|eval(parse(text=paste0("input$LgcpEffectCov",j)))=="rw2"){
               if(eval(parse(text=paste0("input$LgcpEffectCustomPrior",j)))=="custom"){
                 if(eval(parse(text=paste0("input$LgcpEffectCovKindPrior",j)))=="pc"){
@@ -2881,8 +3010,6 @@ shinyServer(function(input, output, session) {
       
       ### Stacks of the geostatistical, Lgcp and prediction layers ====
       
-      ResponseVariable <- DFsample[,3]
-      
       A_inf_tot <- c(A.inf,1)
       if(length(A_Inf.spde1)>0){
         for(i in seq_along(A_Inf.spde1)){
@@ -2949,7 +3076,45 @@ shinyServer(function(input, output, session) {
         controlINLA <- list()
       }
       
-      Lgcp.model <- inla(formula=formula_inla, family = c(input$SelectLgcpFamily),
+      
+      # Save data to download it and create reproducible framework
+      
+      family_inla <- input$SelectLgcpFamily
+      control_inla.mode <- input$INLAModeLgcp
+      
+      if(input$saveLgcp==TRUE){
+        list_spde <- list()
+        for(i in c(which("spde" == ls()), which(str_detect(ls(),  "spde1d_")))){
+          list_spde[[ls()[i]]] <- eval(parse(text=ls()[i]))
+        }
+        
+        code.test <- paste("inla(formula=ListAppShiny_LgcpModel$formula_inla, family = ListAppShiny_LgcpModel$family_inla,",
+                           "data = inla.stack.data(ListAppShiny_LgcpModel$Total.stack),",
+                           "control.predictor = list(A = inla.stack.A(ListAppShiny_LgcpModel$Total.stack), compute = TRUE, link = 1),",
+                           "control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),",
+                           "control.inla=ListAppShiny_LgcpModel$controlINLA, control.family=ListAppShiny_LgcpModel$controlFamily,",
+                           "control.mode=ListAppShiny_LgcpModel$controlModeTheta,",
+                           "inla.mode=ListAppShiny_LgcpModel$control_inla.mode,",
+                           "verbose=FALSE)")
+        
+        ListAppShiny_LgcpModel <- list(family_inla=family_inla, formula_inla=formula_inla, Ntrials_inla=Ntrials_inla,
+                                       Total.stack=Total.stack, mesh=mesh, list_spde=list_spde,
+                                       control.inla=controlINLA, controlFamily=controlFamily, controlModeTheta=controlModeTheta,
+                                       control_inla.mode=control_inla.mode,
+                                       code.test=code.test)
+        test_save <- try(
+          saveRDS(object = ListAppShiny_LgcpModel, file=paste0(input$LgcpSavePath, input$LgcpSaveName)),
+          silent=TRUE
+        )
+        if(class(test_save)!="try-error"){
+          showNotification(ui=paste0("The model information is being saved and stored as ", input$LgcpSavePath, input$LgcpSaveName), duration = NULL)
+        } else{
+          showNotification(ui=paste("An error happened while saving the model."), duration = NULL)
+        }
+      }
+      
+      
+      Lgcp.model <- inla(formula=formula_inla, family = family_inla,
                          data = inla.stack.data(Total.stack),
                          E = inla.stack.data(Total.stack)$e,
                          control.inla = controlINLA,
@@ -2957,7 +3122,7 @@ shinyServer(function(input, output, session) {
                          control.family = controlFamily,
                          control.mode = controlModeTheta,
                          control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),
-                         inla.mode=input$INLAModeLgcp,
+                         inla.mode=control_inla.mode,
                          verbose=FALSE)
       
       index.pred <- inla.stack.index(Total.stack, "Prediction_Lgcp")$data
@@ -3375,14 +3540,31 @@ shinyServer(function(input, output, session) {
     PrefCheckBoxNames <- function(){
       if(input$PrefDataSimulatedLoaded=="load"){
         DF <- as.data.frame(datareadSample())
-        if(input$SelectPrefFamily=="binomial"){DFnames <- names(DF)[c(5:ncol(DF))]}
-        else{DFnames <- names(DF)[c(4:ncol(DF))]}
       } else if(input$PrefDataSimulatedLoaded=="sim"){
-        DF <- Pref.sampling()
-        DFnames <- names(DF)[c(4)]
+        DF <- as.data.frame(Pref.sampling())
       }
+      DFnames <- names(DF)[c(3:ncol(DF))]
       return(DFnames)
     }
+    
+    observe({
+      output$UserResponsePref <- renderUI({
+        tagList(
+          selectInput(inputId="UserResponsePref",
+                      label="Select Response Variable",
+                      choices=PrefCheckBoxNames(),
+                      selected=c()
+          ),
+          if(input$SelectPrefFamily=="binomial"){
+            selectInput(inputId="UserResponseTrialsPref",
+                        label="Select Trials variable",
+                        choices=PrefCheckBoxNames(),
+                        selected=c()
+            )
+          }
+        )
+      })
+    })
     
     observe({
       output$checkBoxPrefDataFrame <- renderUI({
@@ -3426,6 +3608,13 @@ shinyServer(function(input, output, session) {
                                                   label="Number of nodes",
                                                   value=10, min=1, step=1
                                      )
+                    ),
+                    awesomeCheckboxGroup(
+                      inputId = paste0("PrefCenteringScalingCov",i),
+                      label = paste("Centering and scaling:", input$UserComponentsPref[i]), 
+                      choices = c("Centering", "Scaling"), selected = c(),
+                      inline = TRUE, 
+                      status = "info"
                     ),
                     radioGroupButtons(
                       inputId = paste0("PrefEffectCustomPrior",i),
@@ -3479,6 +3668,13 @@ shinyServer(function(input, output, session) {
                                                     label="Number of nodes",
                                                     value=10, min=1, step=1
                                        )
+                      ),
+                      awesomeCheckboxGroup(
+                        inputId = paste0("PrefCenteringScalingCov",i),
+                        label = paste("Centering and scaling:", input$UserComponentsPref[i]), 
+                        choices = c("Centering", "Scaling"), selected = c(),
+                        inline = TRUE, 
+                        status = "info"
                       ),
                       radioGroupButtons(
                         inputId = paste0("PrefEffectCustomPrior",i),
@@ -3770,14 +3966,18 @@ shinyServer(function(input, output, session) {
           DFraster <- as.data.frame(datareadRaster())
         }
       }
-
+      
       variablesChosenDefault <- input$DefaultComponentsPref
       variablesChosenUser <- input$UserComponentsPref
       variablesChosen <- c(variablesChosenDefault, variablesChosenUser)
-
-      UserComponentsPrefSharing <- list()
-      UserComponentsPrefSharing[[paste0("Pref")]] <- eval(parse(text=paste0("input$UserComponentsPrefSharing")))
-
+      
+      # idPrefs <- unique(DFsample[,input$UserComponentsPrefDependentGroup])[unique(DFsample[,input$UserComponentsPrefDependentGroup])!="Ind"]
+      # nPrefs <- length(idPrefs)
+      UserComponentsPrefSharing <- input$UserComponentsPrefSharing
+      # for(i in seq_len(nPrefs)){
+      #   UserComponentsPrefSharing[[paste0("Pref_",i)]] <- eval(parse(text=paste0("input$UserComponentsPrefSharing_",i)))
+      # }
+      # 
       if(input$buildPrefMesh==0){
         server_mesh <- PrefMeshBase()
         mesh <- server_mesh$mesh
@@ -3785,7 +3985,7 @@ shinyServer(function(input, output, session) {
         server_mesh <- PrefMesh()
         mesh <- server_mesh$mesh
       }
-
+      
       if(input$optionPrefS=="auto"){
         if(input$KindPriorSpatialEffectPref=="PC.prior"){
           prior.range <- c(mean(c(diff(range(mesh$loc[mesh$segm$int$idx[,1],1])),diff(range(mesh$loc[mesh$segm$int$idx[,1],2]))))/5, 0.5)
@@ -3817,47 +4017,43 @@ shinyServer(function(input, output, session) {
                                      theta.prior.mean = c(prior.range[2],prior.sigma[2]), theta.prior.prec = c(prior.range[3],prior.sigma[3]))
         }
       }
-
+      
       spde.index <- inla.spde.make.index(name="Spatial", n.spde = spde$n.spde)
-
+      
       # LGCP mesh operations
       ldomain <- unique(mesh$loc[mesh$segm$int$idx,1:2])
+      ldomain <- rbind(ldomain, ldomain[1,])
       dmesh <- mesh.dual(mesh = mesh)
-      domain.polys <- Polygons(list(Polygon(ldomain)), '0')
-      domainSP <- SpatialPolygons(list(domain.polys))
+      domainPolygon <- st_polygon(x=list(ldomain))
       w <- sapply(1:length(dmesh), function(i) {
-        # if (gIntersects(dmesh[i, ], domainSP))
-        #   return(gArea(gIntersection(dmesh[i, ], domainSP)))
-        # else return(0)
-        if (sf::st_intersects(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP), sparse=FALSE))
-          return(sf::st_area(sf::st_intersection(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP))))
+        if (sf::st_intersects(dmesh[[i]], domainPolygon, sparse=FALSE))
+          return(sf::st_area(sf::st_intersection(dmesh[[i]], domainPolygon)))
         else return(0)
       })
-
+      
       n <- nrow(DFsample)
       nv <- mesh$n
       imat <- Diagonal(nv, rep(1, nv))
       lmat <- inla.spde.make.A(mesh, as.matrix(DFsample[,1:2]))
-      A.inf <- rbind(imat, lmat)
-
+      A.inf <- rbind(imat, lmat) 
+      
       ### Prediction of covariates ====
-
+      
       List.covariates.inf <- list()
       List.covariates.mesh <- list()
       List.covariates.pred <- list()
-
-
+      
       if((input$PrefDataSimulatedLoaded=="load"&input$PrefRasterSPDE=="solvecov")|input$PrefDataSimulatedLoaded=="sim"|(input$PrefDataSimulatedLoaded=="load"&input$PrefRasterSPDE=="raster"|input$PrefRasterPred=="SPDEraster")){
         x.pred <- seq(range(mesh$loc[mesh$segm$int$idx[,1], 1])[1], range(mesh$loc[mesh$segm$int$idx[,1], 1])[2], length.out=input$PrefSPDErasterInput)
         y.pred <- seq(range(mesh$loc[mesh$segm$int$idx[,1], 2])[1], range(mesh$loc[mesh$segm$int$idx[,1], 2])[2], length.out=input$PrefSPDErasterInput)
         xy.pred <- expand.grid(x=x.pred,y=y.pred)
-        xy.pred <- xy.pred[which(!is.na(over(SpatialPoints(coords=xy.pred),SpatialPolygons(Srl=list(Polygons(srl=list(Polygon(coords=mesh$loc[mesh$segm$int$idx[,1], 1:2])), ID="int")))))),1:2]
+        xy.pred <- xy.pred[which(!is.na(over(SpatialPoints(coords=xy.pred),SpatialPolygons(Srl=list(Polygons(srl=list(Polygon(coords=mesh$loc[mesh$segm$int$idx[,1], 1:2])), ID="int")))))),1:2]          
         A.geo.pred <- inla.spde.make.A(mesh=mesh, loc=as.matrix(xy.pred))
       } else{ #if(input$PrefDataSimulatedLoaded=="load"&input$PrefRasterSPDE=="raster"|input$PrefRasterPred=="rasterpred"){
-        xy.pred <- DFraster
+        xy.pred <- DFraster        
         A.geo.pred <- inla.spde.make.A(mesh=mesh, loc=as.matrix(xy.pred))
       }
-
+      
       for(i in seq_along(variablesChosenUser)){
         if(!is.character(DFsample[,variablesChosenUser[i]])){
           prior.range.cov <- c(mean(c(diff(range(mesh$loc[mesh$segm$int$idx[,1],1])),diff(range(mesh$loc[mesh$segm$int$idx[,1],2]))))/5, 0.5)
@@ -3865,12 +4061,12 @@ shinyServer(function(input, output, session) {
           spde.cov <- inla.spde2.pcmatern(mesh, prior.range = prior.range.cov, prior.sigma = prior.sigma.cov, alpha=2)
           spde.cov.index <- inla.spde.make.index(name="spatial.cov", n.spde = spde.cov$n.spde)
           formula.cov <- y ~ -1 + Intercept + f(spatial.cov, model=spde.cov)
-
+          
           if((input$PrefDataSimulatedLoaded=="load"&input$PrefRasterSPDE=="solvecov")|input$PrefDataSimulatedLoaded=="sim"){
             x.pred <- seq(range(mesh$loc[mesh$segm$int$idx[,1], 1])[1], range(mesh$loc[mesh$segm$int$idx[,1], 1])[2], length.out=input$PrefSPDErasterInput)
             y.pred <- seq(range(mesh$loc[mesh$segm$int$idx[,1], 2])[1], range(mesh$loc[mesh$segm$int$idx[,1], 2])[2], length.out=input$PrefSPDErasterInput)
             xy.pred <- expand.grid(x=x.pred,y=y.pred)
-            xy.pred <- xy.pred[which(!is.na(over(SpatialPoints(coords=xy.pred),SpatialPolygons(Srl=list(Polygons(srl=list(Polygon(coords=mesh$loc[mesh$segm$int$idx[,1], 1:2])), ID="int")))))),1:2]
+            xy.pred <- xy.pred[which(!is.na(over(SpatialPoints(coords=xy.pred),SpatialPolygons(Srl=list(Polygons(srl=list(Polygon(coords=mesh$loc[mesh$segm$int$idx[,1], 1:2])), ID="int")))))),1:2]          
             A.geo.pred <- inla.spde.make.A(mesh=mesh, loc=as.matrix(xy.pred))
             Inf.stack.cov <- inla.stack(data=list(y=DFsample[,variablesChosenUser[i]]),
                                         A=list(lmat, 1),
@@ -3903,7 +4099,7 @@ shinyServer(function(input, output, session) {
             x.pred <- seq(range(mesh$loc[mesh$segm$int$idx[,1], 1])[1], range(mesh$loc[mesh$segm$int$idx[,1], 1])[2], length.out=input$PrefSPDErasterInput)
             y.pred <- seq(range(mesh$loc[mesh$segm$int$idx[,1], 2])[1], range(mesh$loc[mesh$segm$int$idx[,1], 2])[2], length.out=input$PrefSPDErasterInput)
             xy.pred <- expand.grid(x=x.pred,y=y.pred)
-            xy.pred <- xy.pred[which(!is.na(over(SpatialPoints(coords=xy.pred),SpatialPolygons(Srl=list(Polygons(srl=list(Polygon(coords=mesh$loc[mesh$segm$int$idx[,1], 1:2])), ID="int")))))),1:2]
+            xy.pred <- xy.pred[which(!is.na(over(SpatialPoints(coords=xy.pred),SpatialPolygons(Srl=list(Polygons(srl=list(Polygon(coords=mesh$loc[mesh$segm$int$idx[,1], 1:2])), ID="int")))))),1:2]          
             A.geo.pred <- inla.spde.make.A(mesh=mesh, loc=as.matrix(xy.pred))
             if(variablesChosenUser[i] %in% colnames(DFraster)){
               Inf.stack.cov <- inla.stack(data=list(y=c(DFsample[,variablesChosenUser[i]], DFraster[!is.na(DFraster[,variablesChosenUser[i]]),variablesChosenUser[i]])),
@@ -3942,9 +4138,9 @@ shinyServer(function(input, output, session) {
             List.covariates.mesh[[variablesChosenUser[i]]] <- mod.cov$summary.fitted.values[indx.mesh,"mean"]
             List.covariates.pred[[variablesChosenUser[i]]] <- mod.cov$summary.fitted.values[indx.pred,"mean"]
           } else if(input$PrefDataSimulatedLoaded=="load"&input$PrefRasterSPDE=="raster"|input$PrefRasterPred=="rasterpred"){
-            xy.pred <- DFraste[,1:2]
+            xy.pred <- DFraste[,1:2]          
             A.geo.pred <- inla.spde.make.A(mesh=mesh, loc=as.matrix(xy.pred))
-
+            
             Inf.stack.cov <- inla.stack(data=list(y=c(DFsample[,variablesChosenUser[i]], DFraster[,variablesChosenUser[i]])),
                                         A=list(inla.spde.make.A(mesh=mesh, loc=as.matrix(rbind(DFsample[,1:2],DFraster[,1:2]))), 1),
                                         effects=list(list(spatial.cov=spde.cov.index$spatial.cov),
@@ -3962,7 +4158,7 @@ shinyServer(function(input, output, session) {
                             control.predictor = list(compute=FALSE, A=inla.stack.A(Total.stack.cov)))
             indx.mesh <- inla.stack.index(Total.stack.cov, tag="Mesh.cov")$data
             List.covariates.mesh[[variablesChosenUser[i]]] <- mod.cov$summary.fitted.values[indx.mesh,"mean"]
-
+            
             List.covariates.inf[[variablesChosenUser[i]]] <- DFsample[,variablesChosenUser[i]]
             List.covariates.pred[[variablesChosenUser[i]]] <- DFraster[,variablesChosenUser[i]]
           }
@@ -3972,103 +4168,100 @@ shinyServer(function(input, output, session) {
             List.covariates.inf[[variablesChosenUser[i]]] <- DFsample[cov.inf.indx, variablesChosenUser[i]]
             mesh.indx <- as.vector(unlist(lapply(X=1:nrow(mesh$loc), FUN=function(Y){which.min(apply(X=(DFsample[!is.na(DFsample[,variablesChosenUser[i]]),1:2]-matrix(mesh$loc[Y,1:2],ncol=2))**2, MARGIN=1, FUN=sum))})))
             List.covariates.mesh[[variablesChosenUser[i]]] <- DFsample[mesh.indx, variablesChosenUser[i]]
-
+            
             PrefFactorModelDF <- data.frame(y=1, Pref=c(List.covariates.mesh[[variablesChosenUser[i]]], List.covariates.inf[[variablesChosenUser[i]]]))
             colnames(PrefFactorModelDF) <- c("y", variablesChosenUser[i])
             idx.factor <- which(variablesChosenUser[i]==names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])[names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])%in%c(variablesChosenUser)])
-
+            
             if(eval(parse(text=paste0("input$PrefKindPredictionFactorLevel",idx.factor)))=="nearest"){
               cov.pred.ind <- as.vector(unlist(lapply(X=1:nrow(xy.pred), FUN=function(Y){which.min(apply(X=(DFsample[!is.na(DFsample[,variablesChosenUser[i]]),1:2]-matrix(xy.pred[Y,1:2],ncol=2))**2, MARGIN=1, FUN=sum))})))
               List.covariates.pred[[variablesChosenUser[i]]] <- DFsample[cov.pred.ind, variablesChosenUser[i]]
             } else{
               List.covariates.pred[[variablesChosenUser[i]]] <- rep(NA, times=nrow(xy.pred))
             }
-
+            
           } else {
             DFsampleraster <- rbind(DFsample[,c(1:2,which(variablesChosenUser[i]==colnames(DFsample)))], DFraster[,c(1:2, which(variablesChosenUser[i]==colnames(DFraster)))])
             cov.inf.indx <- as.vector(unlist(lapply(X=1:nrow(DFsample), FUN=function(Y){which.min(apply(X=(DFsampleraster[!is.na(DFsampleraster[,variablesChosenUser[i]]),1:2]-matrix(DFsample[Y,1:2],ncol=2))**2, MARGIN=1, FUN=sum))})))
             List.covariates.inf[[variablesChosenUser[i]]] <- DFsample[cov.inf.indx, variablesChosenUser[i]]
             mesh.indx <- as.vector(unlist(lapply(X=1:nrow(mesh$loc), FUN=function(Y){which.min(apply(X=(DFsampleraster[!is.na(DFsampleraster[,variablesChosenUser[i]]),1:2]-matrix(mesh$loc[Y,1:2],ncol=2))**2, MARGIN=1, FUN=sum))})))
             List.covariates.mesh[[variablesChosenUser[i]]] <- DFsample[mesh.indx, variablesChosenUser[i]]
-
+            
             PrefFactorModelDF <- data.frame(y=1, Pref=c(List.covariates.mesh[[variablesChosenUser[i]]], List.covariates.inf[[variablesChosenUser[i]]]))
             colnames(PrefFactorModelDF) <- c("y", variablesChosenUser[i])
             idx.factor <- which(variablesChosenUser[i]==names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])[names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])%in%c(variablesChosenUser)])
-
+            
             if(eval(parse(text=paste0("input$PrefKindPredictionFactorLevel",idx.factor)))=="nearest"){
               cov.pred.ind <- as.vector(unlist(lapply(X=1:nrow(xy.pred), FUN=function(Y){which.min(apply(X=(DFsampleraster[!is.na(DFsampleraster[,variablesChosenUser[i]]),1:2]-matrix(xy.pred[Y,1:2],ncol=2))**2, MARGIN=1, FUN=sum))})))
               List.covariates.pred[[variablesChosenUser[i]]] <- DFsample[cov.pred.ind, variablesChosenUser[i]]
             } else{
               List.covariates.pred[[variablesChosenUser[i]]] <- rep(NA, times=nrow(xy.pred))
             }
-
+            
           }
         }
       }
-
+      
       ### Building the main model and stacks structure ====
-
+      
       Inf.geo.effects.list <- list(
         list(),
         list()
       )
-
+      
       Pred.geo.effects.list <- list(
         list(),
         list()
       )
-
-
-      Inf.Prefs.effects.list <- list()
       
-      Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[i],".effects.list")]] <- list(list(),list())
-
+      Inf.Prefs.effects.list <- list(list(),list())
+      
       formula_mod <- c("y ~ -1")
-
+      
       A_Inf.spde1 <- list()
       A_Pred.spde1 <- list()
-
+      
       for(i in seq_along(variablesChosen)){
         if(variablesChosen[i]=="Intercept"){
           formula_mod <- paste(formula_mod, "f(Intercept, model='linear')", sep=" + ")
           Inf.geo.effects.list[[2]][["Intercept"]] <- c(rep(1, times=nv), rep(1, times=n))
           Pred.geo.effects.list[[2]][["Intercept"]] <- rep(1, times=nrow(A.geo.pred))
-
-          if(length(UserComponentsPrefSharing)>0){
-            for(k in seq_along(UserComponentsPrefSharing)){
-              if("Intercept" %in% UserComponentsPrefSharing[[k]]){
-                showNotification(ui=paste0("From a theoretical perspective, sharing linear effects is feasible but doesn't make logical sense. Consequently, we will approach them as non-shared effects."), duration=10, closeButton=TRUE, type="warning")
-                ComponentPrefGroup <- "Pref"
-                formula_mod <- paste(formula_mod, paste0("f(Intercept_",ComponentPrefGroup[k],", model='linear')"), sep=" + ")
-                Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[k],".effects.list")]][[2]][[paste0("Intercept_", ComponentPrefGroup[k])]] <- c(rep(1, times=nv), rep(1, times=n))
-              } else{
-                ComponentPrefGroup <- "Pref"
-                formula_mod <- paste(formula_mod, paste0("f(Intercept_",ComponentPrefGroup[k],", model='linear')"), sep=" + ")
-                Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[k],".effects.list")]][[2]][[paste0("Intercept_", ComponentPrefGroup[k])]] <- c(rep(1, times=nv), rep(1, times=n))
-              }
-            }
+          
+          if("Intercept" %in% UserComponentsPrefSharing){
+            showNotification(ui=paste0("From a theoretical perspective, sharing linear effects is feasible but doesn't make logical sense. Consequently, we will approach them as non-shared effects."), duration=10, closeButton=TRUE, type="warning")
+            ComponentPrefGroup <- "Pref"
+            formula_mod <- paste(formula_mod, paste0("f(Intercept_",ComponentPrefGroup,", model='linear')"), sep=" + ")
+            Inf.Prefs.effects.list[[2]][[paste0("Intercept_", ComponentPrefGroup)]] <- c(rep(1, times=nv), rep(1, times=n))
+          } else{
+            ComponentPrefGroup <- "Pref"
+            formula_mod <- paste(formula_mod, paste0("f(Intercept_",ComponentPrefGroup,", model='linear')"), sep=" + ")
+            Inf.Prefs.effects.list[[2]][[paste0("Intercept_", ComponentPrefGroup)]] <- c(rep(1, times=nv), rep(1, times=n))
           }
         } else if(variablesChosen[i]=="Spatial Effect"){
           formula_mod <- paste(formula_mod, "f(Spatial, model=spde)", sep=" + ")
           Inf.geo.effects.list[[1]][["Spatial"]] <- spde.index$Spatial
           Pred.geo.effects.list[[1]][["Spatial"]] <- spde.index$Spatial
-
-          if(length(UserComponentsPrefSharing)>0){
-            for(k in seq_along(UserComponentsPrefSharing)){
-              if("Spatial Effect" %in% UserComponentsPrefSharing[[k]]){
-                ComponentPrefGroup <- "Pref"
-                formula_mod <- paste(formula_mod, paste0("f(Spatial_",ComponentPrefGroup[k],"_copy, copy='Spatial', fixed=FALSE)"), sep=" + ")
-                Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[k],".effects.list")]][[1]][[paste0("Spatial_", ComponentPrefGroup[k], "_copy")]] <- spde.index$Spatial
-              } else{
-                ComponentPrefGroup <- "Pref"
-                formula_mod <- paste(formula_mod, paste0("f(Spatial_",ComponentPrefGroup[k],")"), sep=" + ")
-                Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[k],".effects.list")]][[1]][[paste0("Spatial_", ComponentPrefGroup[k])]] <- spde.index$Spatial
-              }
-            }
+          
+          if("Spatial Effect" %in% UserComponentsPrefSharing){
+            ComponentPrefGroup <- "Pref"
+            formula_mod <- paste(formula_mod, paste0("f(Spatial_",ComponentPrefGroup,"_copy, copy='Spatial', fixed=FALSE)"), sep=" + ")
+            Inf.Prefs.effects.list[[1]][[paste0("Spatial_", ComponentPrefGroup, "_copy")]] <- spde.index$Spatial
+          } else{
+            ComponentPrefGroup <- "Pref"
+            formula_mod <- paste(formula_mod, paste0("f(Spatial_",ComponentPrefGroup,")"), sep=" + ")
+            Inf.Prefs.effects.list[[1]][[paste0("Spatial_", ComponentPrefGroup)]] <- spde.index$Spatial
           }
         } else{
           j <- which(variablesChosen[i]==variablesChosenUser)
           if(!is.character(DFsample[,variablesChosenUser[j]])){
+            ### Centering and scaling of the chosen variable
+            if("Centering" %in% eval(parse(text=paste0("input$PrefCenteringScalingCov",i)))){
+              DFsample[,variablesChosenUser[i]] <- DFsample[,variablesChosenUser[i]] - mean(DFsample[,variablesChosenUser[i]])
+            } 
+            if("Scaling" %in% eval(parse(text=paste0("input$PrefCenteringScalingCov",i)))){
+              DFsample[,variablesChosenUser[i]] <- DFsample[,variablesChosenUser[i]] / sd(DFsample[,variablesChosenUser[i]])
+            }
+            ################################################
             if(eval(parse(text=paste0("input$PrefEffectCov",j)))=="rw1"|eval(parse(text=paste0("input$PrefEffectCov",j)))=="rw2"){
               if(eval(parse(text=paste0("input$PrefEffectCustomPrior",j)))=="custom"){
                 if(eval(parse(text=paste0("input$PrefEffectCovKindPrior",j)))=="pc"){
@@ -4095,29 +4288,24 @@ shinyServer(function(input, output, session) {
                 formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model='",eval(parse(text=paste0("input$PrefEffectCov",j))),  "', constr=",eval(parse(text=paste0("input$PrefEffectCovConstr",j))),", scale.model=TRUE)"), sep=" + ")
               }
               group.cov <- inla.group(x=c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]], List.covariates.pred[[variablesChosenUser[j]]]), n=eval(parse(text=paste0("input$PrefEffectCovNodes",j))), method="cut")
-
+              
               Inf.geo.effects.list[[2]][[variablesChosenUser[j]]] <- group.cov[seq_len(n + nv)]
               Pred.geo.effects.list[[2]][[variablesChosenUser[j]]] <- group.cov[-seq_len(n + nv)]
-
-              if(length(UserComponentsPrefSharing)>0){
-                for(k in seq_along(UserComponentsPrefSharing)){
-                  if(variablesChosenUser[j] %in% UserComponentsPrefSharing[[k]]){
-                    ComponentPrefGroup <- "Pref"
-                    formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],"_",ComponentPrefGroup[k],"_copy, copy='",variablesChosenUser[j],"', fixed=FALSE)"), sep=" + ")
-                    Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[k],".effects.list")]][[2]][[paste0(variablesChosenUser[j], "_", ComponentPrefGroup[k], "_copy")]] <- group.cov[seq_len(n + nv)]
-                  } else{
-                    ComponentPrefGroup <- "Pref"
-                    formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],"_",ComponentPrefGroup[k],")"), sep=" + ")
-                    Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[k],".effects.list")]][[2]][[paste0(variablesChosenUser[j], "_", ComponentPrefGroup[k])]] <- group.cov[seq_len(n + nv)]
-                  }
-                }
+              
+              if(variablesChosenUser[j] %in% UserComponentsPrefSharing){
+                ComponentPrefGroup <- "Pref"
+                formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],"_",ComponentPrefGroup,"_copy, copy='",variablesChosenUser[j],"', fixed=FALSE)"), sep=" + ")
+                Inf.Prefs.effects.list[[2]][[paste0(variablesChosenUser[j], "_", ComponentPrefGroup, "_copy")]] <- group.cov[seq_len(n + nv)]
+              } else{
+                ComponentPrefGroup <- "Pref"
+                formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],"_",ComponentPrefGroup,")"), sep=" + ")
+                Inf.Prefs.effects.list[[2]][[paste0(variablesChosenUser[j], "_", ComponentPrefGroup)]] <- group.cov[seq_len(n + nv)]
               }
-
             } else if(eval(parse(text=paste0("input$PrefEffectCov",j)))=="spde1"){
               Tot_cov <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]], List.covariates.pred[[variablesChosenUser[j]]])
               spde1_nodes <- seq(min(Tot_cov), max(Tot_cov), length.out=eval(parse(text=paste0("input$PrefEffectCovNodes",j))))
               mesh1d <- fm_mesh_1d(loc=spde1_nodes)
-
+              
               if(eval(parse(text=paste0("input$PrefEffectCustomPrior",j)))=="custom"){
                 if(eval(parse(text=paste0("input$PrefEffectCovKindPrior",j)))=="pc"){
                   hyper <- as.numeric(unlist(strsplit(eval(parse(text=paste0("input$PrefEffectCovPriorPCValues",i))), ",")))
@@ -4132,36 +4320,33 @@ shinyServer(function(input, output, session) {
                   assign(paste0("spde1d_",variablesChosenUser[j]), inla.spde2.matern(mesh = mesh1d, B.tau = cbind(tau0, nu, -1), B.kappa = cbind(kappa0, -1, 0),
                                                                                      theta.prior.mean = c(prior.range[2],prior.sigma[2]), theta.prior.prec = c(prior.range[3],prior.sigma[3])))
                 }
-              } else {
+              } else { 
                 assign(paste0("spde1d_",variablesChosenUser[j]), inla.spde2.pcmatern(mesh=mesh1d, prior.range=c(abs(diff(range(Tot_cov)))/5, 0.5), prior.sigma=c(1,0.5)))
               }
-
+              
               spde1d.index <- inla.spde.make.index(name=paste0(variablesChosenUser[j]), n.spde=eval(parse(text=paste0("spde1d_",variablesChosenUser[j])))$n.spde)
               formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model=", paste0("spde1d_",variablesChosenUser[j]),  ")"), sep=" + ")
+              
               Inf.geo.effects.list[[length(A_Inf.spde1)+3]] <- list()
               Pred.geo.effects.list[[length(A_Inf.spde1)+3]] <- list()
               Inf.geo.effects.list[[length(A_Inf.spde1)+3]][[variablesChosenUser[j]]] <- spde1d.index[[1]]
               Pred.geo.effects.list[[length(A_Inf.spde1)+3]][[variablesChosenUser[j]]] <- spde1d.index[[1]]
-
-              if(length(UserComponentsPrefSharing)>0){
-                for(k in seq_along(UserComponentsPrefSharing)){
-                  if(variablesChosenUser[j] %in% UserComponentsPrefSharing[[k]]){
-                    ComponentPrefGroup <- "Pref"
-                    formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],"_",ComponentPrefGroup[k],"_copy, copy='",variablesChosenUser[j],"', fixed=FALSE)"), sep=" + ")
-                    Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[k],".effects.list")]][[length(A_Inf.spde1)+3]] <- list()
-                    Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[k],".effects.list")]][[length(A_Inf.spde1)+3]][[paste0(variablesChosenUser[j], "_", ComponentPrefGroup[k], "_copy")]] <- spde1d.index[[1]]
-                  } else{
-                    ComponentPrefGroup <- "Pref"
-                    formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],"_",ComponentPrefGroup[k],", model=", paste0("spde1d_",variablesChosenUser[j]),")"), sep=" + ")
-                    Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[k],".effects.list")]][[length(A_Inf.spde1)+3]] <- list()
-                    Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[k],".effects.list")]][[length(A_Inf.spde1)+3]][[paste0(variablesChosenUser[j], "_", ComponentPrefGroup[k])]] <- spde1d.index[[1]]
-                  }
-                }
+              
+              if(variablesChosenUser[j] %in% UserComponentsPrefSharing){
+                ComponentPrefGroup <- "Pref"
+                formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],"_",ComponentPrefGroup,"_copy, copy='",variablesChosenUser[j],"', fixed=FALSE)"), sep=" + ")
+                Inf.Prefs.effects.list[[length(A_Inf.spde1)+3]] <- list()
+                Inf.Prefs.effects.list[[length(A_Inf.spde1)+3]][[paste0(variablesChosenUser[j], "_", ComponentPrefGroup, "_copy")]] <- spde1d.index[[1]]
+              } else{
+                ComponentPrefGroup <- "Pref"
+                formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],"_",ComponentPrefGroup,", model=", paste0("spde1d_",variablesChosenUser[j]),")"), sep=" + ")
+                Inf.Prefs.effects.list[[length(A_Inf.spde1)+3]] <- list()
+                Inf.Prefs.effects.list[[length(A_Inf.spde1)+3]][[paste0(variablesChosenUser[j], "_", ComponentPrefGroup)]] <- spde1d.index[[1]]
               }
-
+              
               A_Inf.spde1[[length(A_Inf.spde1)+1]] <- inla.spde.make.A(mesh=mesh1d, loc=Tot_cov[seq_len(nv+n)])
               A_Pred.spde1[[length(A_Pred.spde1)+1]] <- inla.spde.make.A(mesh=mesh1d, loc=Tot_cov[-seq_len(nv+n)])
-
+              
             } else if(eval(parse(text=paste0("input$PrefEffectCov",j)))=="linear"){
               if(eval(parse(text=paste0("input$PrefEffectCustomPrior",j)))=="custom"){
                 hyper <- as.numeric(unlist(strsplit(eval(parse(text=paste0("input$PrefEffectCovPriorBaseValues",j))), ",")))
@@ -4169,23 +4354,19 @@ shinyServer(function(input, output, session) {
               } else{
                 formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model='",eval(parse(text=paste0("input$PrefEffectCov",j))),"')"), sep=" + ")
               }
-
+              
               Inf.geo.effects.list[[2]][[variablesChosenUser[j]]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
               Pred.geo.effects.list[[2]][[variablesChosenUser[j]]] <- c(List.covariates.pred[[variablesChosenUser[j]]])
-
-              if(length(UserComponentsPrefSharing)>0){
-                for(k in seq_along(UserComponentsPrefSharing)){
-                  if(variablesChosenUser[j] %in% UserComponentsPrefSharing[[k]]){
-                    showNotification(ui=paste0("From a theoretical perspective, sharing linear effects is feasible but doesn't make logical sense. Consequently, we will approach them as non-shared effects."), duration=10, closeButton=TRUE, type="warning")
-                    ComponentPrefGroup <- "Pref"
-                    formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],"_",ComponentPrefGroup[k],", model='", eval(parse(text=paste0("input$PrefEffectCov",j))),"')"), sep=" + ")
-                    Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[k],".effects.list")]][[2]][[paste0(variablesChosenUser[j], "_", ComponentPrefGroup[k])]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
-                  } else{
-                    ComponentPrefGroup <- "Pref"
-                    formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],"_",ComponentPrefGroup[k],", model='", eval(parse(text=paste0("input$PrefEffectCov",j))),"')"), sep=" + ")
-                    Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[k],".effects.list")]][[2]][[paste0(variablesChosenUser[j], "_", ComponentPrefGroup[k])]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
-                  }
-                }
+              
+              if(variablesChosenUser[j] %in% UserComponentsPrefSharing){
+                showNotification(ui=paste0("From a theoretical perspective, sharing linear effects is feasible but doesn't make logical sense. Consequently, we will approach them as non-shared effects."), duration=10, closeButton=TRUE, type="warning")
+                ComponentPrefGroup <- "Pref"
+                formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],"_",ComponentPrefGroup,", model='", eval(parse(text=paste0("input$PrefEffectCov",j))),"')"), sep=" + ")
+                Inf.Prefs.effects.list[[2]][[paste0(variablesChosenUser[j], "_", ComponentPrefGroup)]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
+              } else{
+                ComponentPrefGroup <- "Pref"
+                formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],"_",ComponentPrefGroup,", model='", eval(parse(text=paste0("input$PrefEffectCov",j))),"')"), sep=" + ")
+                Inf.Prefs.effects.list[[2]][[paste0(variablesChosenUser[j], "_", ComponentPrefGroup)]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
               }
             } else{
               showNotification(ui=paste("The effect of numerical covariates cannot possess an independent and identically distributed (iid) structure. If this is required, the variable values should be recorded as text, not as numerical input.."), duration = NULL)
@@ -4195,15 +4376,15 @@ shinyServer(function(input, output, session) {
               PrefFactorModelDF <- data.frame(y=1, Pref=c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]]))
               colnames(PrefFactorModelDF) <- c("y", variablesChosenUser[j])
               idx.factor <- which(variablesChosenUser[j]==names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])[names(DFsample[!as.vector(unlist(lapply(X=DFsample, FUN=is.numeric)))])%in%c(variablesChosenUser)])
-
+              
               Inf.geo.effects.list[[2]][[variablesChosenUser[j]]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
-
+              
               Pred.geo.effects.list[[2]][[variablesChosenUser[j]]] <- if(eval(parse(text=paste0("input$PrefKindPredictionFactorLevel",idx.factor)))=="reference"){
                 rep( eval(parse(text=paste0("input$PrefEffectCovFactorPred",idx.factor))), times=length(List.covariates.pred[[variablesChosenUser[j]]]))
               } else{List.covariates.pred[[variablesChosenUser[j]]]}
-
+              
               #c(List.covariates.pred[[variablesChosenUser[j]]])
-
+              
               if(eval(parse(text=paste0("input$PrefEffectCustomPrior",j)))=="custom"){
                 if(eval(parse(text=paste0("input$PrefEffectCovKindPrior",j)))=="pc"){
                   hyper <- list(prec=list(prior="pc.prior",param=c( as.numeric(unlist(strsplit(eval(parse(text=paste0("input$PrefEffectCovPriorPCValues",j))), ","))) )))
@@ -4226,23 +4407,19 @@ shinyServer(function(input, output, session) {
                   formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],", model='iid', hyper=list(prec=list(prior=",unifflat.prior,")), constr=",eval(parse(text=paste0("input$PrefEffectCovConstr",j))),")"), sep=" + ")
                 }
               } else{
-                formula_mod <- paste(formula_mod, paste0("f(", variablesChosenUser[j], ", model='iid'",  ", constr=",eval(parse(text=paste0("input$PrefEffectCovConstr",j))),")"), sep=" + ")
+                formula_mod <- paste(formula_mod, paste0("f(", variablesChosenUser[j], ", model='iid'",  ", constr=",eval(parse(text=paste0("input$PrefEffectCovConstr",j))),")"), sep=" + ") 
               }
 
-              if(length(UserComponentsPrefSharing)>0){
-                for(k in seq_along(UserComponentsPrefSharing)){
-                  if(variablesChosenUser[j] %in% UserComponentsPrefSharing[[k]]){
-                    ComponentPrefGroup <- "Pref"
-                    formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],"_",ComponentPrefGroup[k],"_copy, copy='",variablesChosenUser[j],"')"), sep=" + ")
-                    Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[k],".effects.list")]][[2]][[paste0(variablesChosenUser[j], "_", ComponentPrefGroup[k], "_copy")]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
-                  } else{
-                    ComponentPrefGroup <- "Pref"
-                    formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],"_",ComponentPrefGroup[k],")"), sep=" + ")
-                    Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[k],".effects.list")]][[2]][[paste0(variablesChosenUser[j], "_", ComponentPrefGroup[k])]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
-                  }
-                }
+              if(variablesChosenUser[j] %in% UserComponentsPrefSharing){
+                ComponentPrefGroup <- "Pref"
+                formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],"_",ComponentPrefGroup,"_copy, copy='",variablesChosenUser[j],"')"), sep=" + ")
+                Inf.Prefs.effects.list[[2]][[paste0(variablesChosenUser[j], "_", ComponentPrefGroup, "_copy")]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
+              } else{
+                ComponentPrefGroup <- "Pref"
+                formula_mod <- paste(formula_mod, paste0("f(",variablesChosenUser[j],"_",ComponentPrefGroup,")"), sep=" + ")
+                Inf.Prefs.effects.list[[2]][[paste0(variablesChosenUser[j], "_", ComponentPrefGroup)]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
               }
-
+              
             } else{
               PrefFactorModelDF <- data.frame(y=1, Pref=c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]]))
               colnames(PrefFactorModelDF) <- c("y", variablesChosenUser[j])
@@ -4256,88 +4433,91 @@ shinyServer(function(input, output, session) {
                   hyper <- as.numeric(unlist(strsplit(eval(parse(text=paste0("input$PrefEffectCovPriorBaseValues",j))), ",")))
                   formula_mod <- paste(formula_mod, paste0("f(", l, ", model='linear', mean.linear=", hyper[1], ",prec.linear=", hyper[2],")"), sep=" + ")
                 } else{
-                  formula_mod <- paste(formula_mod, paste0("f(", l, ", model='linear')"), sep=" + ")
+                  formula_mod <- paste(formula_mod, paste0("f(", l, ", model='linear')"), sep=" + ") 
                 }
               }
-
-              if(length(UserComponentsPrefSharing)>0){
-                for(k in seq_along(UserComponentsPrefSharing)){
-                  for(l in setdiff(colnames(FactorVariables),paste0(variablesChosenUser[j], eval(parse(text=paste0("input$PrefEffectCovFactorPred",idx.factor))) ))){
-                    if(variablesChosenUser[j] %in% UserComponentsPrefSharing[[k]]){
-                      showNotification(ui=paste0("From a theoretical perspective, sharing linear effects is feasible but doesn't make logical sense. Consequently, we will approach them as non-shared effects."), duration=10, closeButton=TRUE, type="warning")
-                      ComponentPrefGroup <- "Pref"
-                      formula_mod <- paste(formula_mod, paste0("f(",l,"_",ComponentPrefGroup[k],")"), sep=" + ")
-                      Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[k],".effects.list")]][[2]][[paste0(l, "_", ComponentPrefGroup[k])]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
-                    } else{
-                      ComponentPrefGroup <- "Pref"
-                      formula_mod <- paste(formula_mod, paste0("f(",l,"_",ComponentPrefGroup[k],")"), sep=" + ")
-                      Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[k],".effects.list")]][[2]][[paste0(l, "_", ComponentPrefGroup[k])]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
-                    }
-                  }
+              
+              for(l in setdiff(colnames(FactorVariables),paste0(variablesChosenUser[j], eval(parse(text=paste0("input$PrefEffectCovFactorPred",idx.factor))) ))){
+                if(variablesChosenUser[j] %in% UserComponentsPrefSharing){
+                  showNotification(ui=paste0("From a theoretical perspective, sharing linear effects is feasible but doesn't make logical sense. Consequently, we will approach them as non-shared effects."), duration=10, closeButton=TRUE, type="warning")
+                  ComponentPrefGroup <- "Pref"
+                  formula_mod <- paste(formula_mod, paste0("f(",l,"_",ComponentPrefGroup,")"), sep=" + ")
+                  Inf.Prefs.effects.list[[2]][[paste0(l, "_", ComponentPrefGroup)]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
+                } else{
+                  ComponentPrefGroup <- "Pref"
+                  formula_mod <- paste(formula_mod, paste0("f(",l,"_",ComponentPrefGroup,")"), sep=" + ")
+                  Inf.Prefs.effects.list[[2]][[paste0(l, "_", ComponentPrefGroup)]] <- c(List.covariates.mesh[[variablesChosenUser[j]]], List.covariates.inf[[variablesChosenUser[j]]])
                 }
               }
-
-
+              
             }
           }
         }
       }
-
-      ### Stacks of the geostatistical, Pref and prediction layers ====
-
-      ResponseVariable <- DFsample[,3]
-
+      
+      ### Stacks of the geostatistical, Prefs and prediction layers ====
+      
+      ResponseVariable <- DFsample[,input$UserResponsePref]
+      if(input$SelectPrefFamily=="binomial"){
+        Trials <- DFsample[,input$UserResponseTrialsPref]
+      }
+      
+      
       A_inf_tot <- c(A.inf,1)
       if(length(A_Inf.spde1)>0){
         for(i in seq_along(A_Inf.spde1)){
-          A_inf_tot[[2+i]] <- A_Inf.spde1[[i]]
+          A_inf_tot[[2+i]] <- A_Inf.spde1[[i]] 
         }
-      }
-
+      } 
+      
       A_pred_tot <- c(A.geo.pred,1)
       if(length(A_Inf.spde1)>0){
         for(i in seq_along(A_Inf.spde1)){
-          A_pred_tot[[2+i]] <- A_Pred.spde1[[i]]
+          A_pred_tot[[2+i]] <- A_Pred.spde1[[i]] 
         }
-      }
-
-      Inf.geo.stack <- inla.stack(data=list(y=cbind(c(rep(NA, nv),ResponseVariable), NA), e=rep(0,times=nv+n)),
-                                   A=A_inf_tot,
-                                   effects=Inf.geo.effects.list,
-                                   tag="Inference_geo"
+      } 
+      
+      Inf.geo.stack <- inla.stack(data=
+                                    if(input$SelectPrefFamily=="binomial"){
+                                      list(y=cbind(c(rep(NA, nv),ResponseVariable), NA), e=rep(0,times=nv+n), Ntrials=c(rep(NA, nv),Trials))
+                                    }else{
+                                      list(y=cbind(c(rep(NA, nv),ResponseVariable), NA), e=rep(0,times=nv+n))
+                                    },
+                                  A=A_inf_tot,
+                                  effects=Inf.geo.effects.list,
+                                  tag="Inference_geo"
+                                  )
+      
+      Pred.geo.stack <- inla.stack(data=
+                                     if(input$SelectPrefFamily=="binomial"){
+                                       list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=2), Ntrials=rep(1,nrow(A.geo.pred)))
+                                     }else{
+                                       list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=2))
+                                     },
+                                   A=A_pred_tot,
+                                   effects=Pred.geo.effects.list,
+                                   tag="Prediction_geo"
+                                   )
+      
+      Total.stack <- inla.stack(Inf.geo.stack)
+      ComponentPrefGroup <- "Pref"
+      y.pp <- c(rep(0,times=nv), rep(1, times=n))
+      assign(paste0("Inf.Pref.stack"), 
+             inla.stack(data=list(y=cbind(NA, y.pp), e=c(w, rep(0,n))),
+                        A=A_inf_tot,
+                        effects=Inf.Prefs.effects.list,
+                        tag=paste0("Inf_Pref")
+             )
       )
-
-      Pred.geo.stack <- inla.stack(data=list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=2)),
-                                    A=A_pred_tot,
-                                    effects=Pred.geo.effects.list,
-                                    tag="Prediction_geo")
-
-
-      if(length(UserComponentsPrefSharing)>0){
-        Total.stack <- inla.stack(Inf.geo.stack)
-        ComponentPrefGroup <- "Pref"
-        for(k in seq_along(UserComponentsPrefSharing)){
-          y.na.vec <- rep(NA, times=n)
-          y.na.vec[ComponentPrefGroup[k]==DFsample[,input$UserComponentsPrefDependentGroup]] <- 1
-          y.pp <- c(rep(0,times=nv), y.na.vec)
-          assign(paste0("Inf.Pref",k,".stack"),
-                 inla.stack(data=list(y=cbind(NA, y.pp), e=c(w, rep(0,n))),
-                            A=A_inf_tot,
-                            effects=Inf.Prefs.effects.list[[paste0("Inf.", names(UserComponentsPrefSharing)[k],".effects.list")]],
-                            tag=paste0("Inf_Pref",k)
-                 )
-          )
-          Total.stack <- inla.stack(Total.stack, eval(parse(text=paste0("Inf.Pref",k,".stack"))))
-        }
-        Total.stack <- inla.stack(Total.stack, Pred.geo.stack)
-      } else{
-        Total.stack <- inla.stack(Inf.geo.stack, Pred.geo.stack)
-      }
-
+      
+      test3_func <<- "yes"
+      Total.stack <- inla.stack(Total.stack, eval(parse(text=paste0("Inf.Pref.stack"))))
+      Total.stack <- inla.stack(Total.stack, Pred.geo.stack)
+      
       ### INLA model ====
-
+      
       formula_inla <- as.formula(formula_mod)
-
+      
       if(input$autocustomPrefFamily=='custom'){
         if(input$PrefFamilyPriorKind=="pc"){
           family.pcprec <- as.numeric(unlist(strsplit(input$PrefFamilyHyper,",")))
@@ -4360,28 +4540,67 @@ shinyServer(function(input, output, session) {
       } else{
         controlFamily <- list(list(), list())
       }
-
+      
       if(input$autocustomPrefMode=='custom'){
         controlModeTheta <- list(theta=as.numeric(unlist(strsplit(input$PrefModeHyper,","))), restart=TRUE)
       } else{controlModeTheta <- inla.set.control.mode.default()}
-
+      
       if(input$INLAModePref=="classic"){
         controlINLA <- list(strategy=input$strategyapproxINLAPref,
                             int.strategy=input$strategyintINLAPref)
       } else{
         controlINLA <- list()
       }
-
-      Pref.model <- inla(formula=formula_inla, family = c(input$SelectPrefFamily,'poisson'),
-                             data = inla.stack.data(Total.stack),
-                             E = inla.stack.data(Total.stack)$e,
-                             control.inla = controlINLA,
-                             control.predictor = list(A = inla.stack.A(Total.stack), compute = TRUE, link = 1),
-                             control.family = controlFamily,
-                             control.mode = controlModeTheta,
-                             control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),
-                             inla.mode=input$INLAModePref,
-                             verbose=FALSE)
+      
+      # Save data to download it and create reproducible framework
+      
+      family_inla <- if(input$SelectPrefFamily=="bernoulli"){"binomial"}else{input$SelectPrefFamily}
+      Ntrials_inla <- if(input$SelectPrefFamily=="binomial"){inla.stack.data(Total.stack)$Ntrials}else{NULL}
+      control_inla.mode <- input$INLAModePref
+      
+      if(input$savePref==TRUE){
+        list_spde <- list()
+        for(i in c(which("spde" == ls()), which(str_detect(ls(),  "spde1d_")))){
+          list_spde[[ls()[i]]] <- eval(parse(text=ls()[i]))
+        }
+        
+        code.test <- paste("inla(formula=ListAppShiny_PrefModel$formula_inla, family = ListAppShiny_PrefModel$family_inla,",
+                           "Ntrials = ListAppShiny_PrefModel$Ntrials_inla,",
+                           "data = inla.stack.data(ListAppShiny_PrefModel$Total.stack),",
+                           "control.predictor = list(A = inla.stack.A(ListAppShiny_PrefModel$Total.stack), compute = TRUE, link = 1),",
+                           "control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),",
+                           "control.inla=ListAppShiny_PrefModel$controlINLA, control.family=ListAppShiny_PrefModel$controlFamily,",
+                           "control.mode=ListAppShiny_PrefModel$controlModeTheta,",
+                           "inla.mode=ListAppShiny_PrefModel$control_inla.mode,",
+                           "verbose=FALSE)")
+        
+        ListAppShiny_PrefModel <- list(family_inla=family_inla, formula_inla=formula_inla, Ntrials_inla=Ntrials_inla,
+                                       Total.stack=Total.stack, mesh=mesh, list_spde=list_spde,
+                                       control.inla=controlINLA, controlFamily=controlFamily, controlModeTheta=controlModeTheta,
+                                       control_inla.mode=control_inla.mode,
+                                       code.test=code.test)
+        test_save <- try(
+          saveRDS(object = ListAppShiny_PrefModel, file=paste0(input$PrefSavePath, input$PrefSaveName)),
+          silent=TRUE
+        )
+        if(class(test_save)!="try-error"){
+          showNotification(ui=paste0("The model information is being saved and stored as ", input$PrefSavePath, input$PrefSaveName), duration = NULL)
+        } else{
+          showNotification(ui=paste("An error happened while saving the model."), duration = NULL)
+        }
+      }
+      
+      Pref.model <- inla(formula=formula_inla, family = c(family_inla,'poisson'),
+                         data = inla.stack.data(Total.stack),
+                         Ntrials = Ntrials_inla,
+                         E = inla.stack.data(Total.stack)$e,
+                         control.inla = controlINLA,
+                         control.predictor = list(A = inla.stack.A(Total.stack), compute = TRUE, link = 1),
+                         control.family = controlFamily,
+                         control.mode = controlModeTheta,
+                         control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),
+                         inla.mode=control_inla.mode,
+                         verbose=FALSE)
 
       index.pred <- inla.stack.index(Total.stack, "Prediction_geo")$data
       DFpred <- data.frame(Latitude=xy.pred[,1], Longitude=xy.pred[,2])
@@ -4447,7 +4666,7 @@ shinyServer(function(input, output, session) {
         grid <- expand.grid(seq(min(DF[,1]),max(DF[,1]), length.out=200),seq(min(DF[,2]),max(DF[,2]), length.out=200))
         DFInter <- data.frame(Latitude=grid[,1],Longitude=grid[,2])
         DFInter$Abundance.mean <- InterpolateIrrGrid(z=DF$Abundance.mean,loc=DF[,1:2], gridInter=grid)$DataInter$z
-        DFInter$Abundance.median <- InterpolateIrrGrid(z=DF$Abundance.median,loc=DF[,1:2], gridInter=grid)$DataInter$z
+        DFInter$Abundance.median <- InterpolateIrrGrid(z=DF$Abundance.median,loc=DF[,1:2], gridInter=grid)$DataInter$zbehenmothNiEt
         DFInter$Abundance.sd <- InterpolateIrrGrid(z=DF$Abundance.sd,loc=DF[,1:2], gridInter=grid)$DataInter$z
         colnames(DFInter)[1:2] <- colnames(DF)[1:2]
         DF <- DFInter
@@ -4496,8 +4715,20 @@ shinyServer(function(input, output, session) {
                                          csv = dataggplotPrefAbundanceMeanMedianStdevFit,
                                          txt = dataggplotPrefAbundanceMeanMedianStdevFit),
                      visibleplot  = ggplotPrefAbundanceMeanMedianStdevFit)
-
-
+    
+    DFListAppShiny_PrefModel <- reactive({
+      saveRDS(PrefModelFit()$ListAppShiny_PrefModel)
+    })
+    
+    downloadFile(
+      id = "DFListAppShiny_PrefModel",
+      logger = ss_userAction.Log,
+      filenameroot = "DFListAppShiny_PrefModel",
+      aspectratio  = 1,
+      downloadfxns = list(csv = DFListAppShiny_PrefModel,
+                          txt = DFListAppShiny_PrefModel)
+    )
+    
     dataggplotPrefSpatialMeanMedianStdev <- function(){
       DF <- PrefModelFit()$DFspatialMeanMedianStdev$DFspatialMeanMedianStdev
       return(DF)
@@ -4798,14 +5029,31 @@ shinyServer(function(input, output, session) {
     MixtureCheckBoxNames <- function(){
       if(input$MixtureDataSimulatedLoaded=="load"){
         DF <- as.data.frame(datareadSample())
-        if(input$SelectMixtureFamily=="binomial"){DFnames <- names(DF)[c(5:ncol(DF))]}
-        else{DFnames <- names(DF)[c(4:ncol(DF))]}
       } else if(input$MixtureDataSimulatedLoaded=="sim"){
         DF <- Mixture.sampling()$MixtureSample
-        DFnames <- names(DF)[c(4,5)]
       }
+      DFnames <- names(DF)[c(3:ncol(DF))]
       return(DFnames)
     }
+    
+    observe({
+      output$UserResponseMixture <- renderUI({
+        tagList(
+          selectInput(inputId="UserResponseMixture",
+                      label="Select Response Variable",
+                      choices=MixtureCheckBoxNames(),
+                      selected=c()
+          ),
+          if(input$SelectMixtureFamily=="binomial"){
+            selectInput(inputId="UserResponseTrialsMixture",
+                        label="Select Trials variable",
+                        choices=MixtureCheckBoxNames(),
+                        selected=c()
+            )
+          }
+        )
+      })
+    })
     
     observe({
       output$checkBoxMixtureDataFrame <- renderUI({
@@ -4865,6 +5113,13 @@ shinyServer(function(input, output, session) {
                                                     value=10, min=1, step=1
                                                     )
                       ),
+                      awesomeCheckboxGroup(
+                        inputId = paste0("MixtureCenteringScalingCov",i),
+                        label = paste("Centering and scaling:", input$UserComponentsMixture[i]), 
+                        choices = c("Centering", "Scaling"), selected = c(),
+                        inline = TRUE, 
+                        status = "info"
+                      ),
                       radioGroupButtons(
                         inputId = paste0("MixtureEffectCustomPrior",i),
                         label = "Custom Prior",
@@ -4917,6 +5172,13 @@ shinyServer(function(input, output, session) {
                                                     label="Number of nodes",
                                                     value=10, min=1, step=1
                                                     )
+                      ),
+                      awesomeCheckboxGroup(
+                        inputId = paste0("MixtureCenteringScalingCov",i),
+                        label = paste("Centering and scaling:", input$UserComponentsMixture[i]), 
+                        choices = c("Centering", "Scaling"), selected = c(),
+                        inline = TRUE, 
+                        status = "info"
                       ),
                       radioGroupButtons(
                         inputId = paste0("MixtureEffectCustomPrior",i),
@@ -5264,15 +5526,12 @@ shinyServer(function(input, output, session) {
       
       # LGCP mesh operations
       ldomain <- unique(mesh$loc[mesh$segm$int$idx,1:2])
+      ldomain <- rbind(ldomain, ldomain[1,])
       dmesh <- mesh.dual(mesh = mesh)
-      domain.polys <- Polygons(list(Polygon(ldomain)), '0')
-      domainSP <- SpatialPolygons(list(domain.polys))
+      domainPolygon <- st_polygon(x=list(ldomain))
       w <- sapply(1:length(dmesh), function(i) {
-        # if (gIntersects(dmesh[i, ], domainSP))
-        #   return(gArea(gIntersection(dmesh[i, ], domainSP)))
-        # else return(0)
-        if (sf::st_intersects(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP), sparse=FALSE))
-          return(sf::st_area(sf::st_intersection(sf::st_as_sf(dmesh[i, ]), sf::st_as_sf(domainSP))))
+        if (sf::st_intersects(dmesh[[i]], domainPolygon, sparse=FALSE))
+          return(sf::st_area(sf::st_intersection(dmesh[[i]], domainPolygon)))
         else return(0)
       })
       
@@ -5518,6 +5777,14 @@ shinyServer(function(input, output, session) {
         } else{
           j <- which(variablesChosen[i]==variablesChosenUser)
           if(!is.character(DFsample[,variablesChosenUser[j]])){
+            ### Centering and scaling of the chosen variable
+            if("Centering" %in% eval(parse(text=paste0("input$MixtureCenteringScalingCov",i)))){
+              DFsample[,variablesChosenUser[i]] <- DFsample[,variablesChosenUser[i]] - mean(DFsample[,variablesChosenUser[i]])
+            } 
+            if("Scaling" %in% eval(parse(text=paste0("input$MixtureCenteringScalingCov",i)))){
+              DFsample[,variablesChosenUser[i]] <- DFsample[,variablesChosenUser[i]] / sd(DFsample[,variablesChosenUser[i]])
+            }
+            ################################################
             if(eval(parse(text=paste0("input$MixtureEffectCov",j)))=="rw1"|eval(parse(text=paste0("input$MixtureEffectCov",j)))=="rw2"){
               if(eval(parse(text=paste0("input$MixtureEffectCustomPrior",j)))=="custom"){
                 if(eval(parse(text=paste0("input$MixtureEffectCovKindPrior",j)))=="pc"){
@@ -5735,7 +6002,11 @@ shinyServer(function(input, output, session) {
       
       ### Stacks of the geostatistical, mixtures and prediction layers ====
       
-      ResponseVariable <- DFsample[,3]
+      ResponseVariable <- DFsample[,input$UserResponseMixture]
+      if(input$SelectMixtureFamily=="binomial"){
+        Trials <- DFsample[,input$UserResponseTrialsMixture]
+      }
+      
       
       A_inf_tot <- c(A.inf,1)
       if(length(A_Inf.spde1)>0){
@@ -5751,13 +6022,23 @@ shinyServer(function(input, output, session) {
         }
       } 
       
-      Inf.geo.stack <- inla.stack(data=list(y=cbind(c(rep(NA, nv),ResponseVariable), NA), e=rep(0,times=nv+n)),
+      Inf.geo.stack <- inla.stack(data=
+                                    if(input$SelectMixtureFamily=="binomial"){
+                                      list(y=cbind(c(rep(NA, nv),ResponseVariable), NA), e=rep(0,times=nv+n), Ntrials=c(rep(NA, nv),Trials))
+                                    }else{
+                                      list(y=cbind(c(rep(NA, nv),ResponseVariable), NA), e=rep(0,times=nv+n))
+                                    },
                                   A=A_inf_tot,
                                   effects=Inf.geo.effects.list,
                                   tag="Inference_geo"
                                   )
       
-      Pred.geo.stack <- inla.stack(data=list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=2)),
+      Pred.geo.stack <- inla.stack(data=
+                                     if(input$SelectMixtureFamily=="binomial"){
+                                       list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=2), Ntrials=rep(1,nrow(A.geo.pred)))
+                                     }else{
+                                       list(y=matrix(NA, nrow=nrow(A.geo.pred), ncol=2))
+                                     },
                                    A=A_pred_tot,
                                    effects=Pred.geo.effects.list,
                                    tag="Prediction_geo")
@@ -5822,15 +6103,54 @@ shinyServer(function(input, output, session) {
         controlINLA <- list()
       }
 
-      Mixture.model <- inla(formula=formula_inla, family = c(input$SelectMixtureFamily,'poisson'),
+      # Save data to download it and create reproducible framework
+      
+      family_inla <- if(input$SelectMixtureFamily=="bernoulli"){"binomial"}else{input$SelectMixtureFamily}
+      Ntrials_inla <- if(input$SelectMixtureFamily=="binomial"){inla.stack.data(Total.stack)$Ntrials}else{NULL}
+      control_inla.mode <- input$INLAModeMixture
+      
+      if(input$saveMixture==TRUE){
+        list_spde <- list()
+        for(i in c(which("spde" == ls()), which(str_detect(ls(),  "spde1d_")))){
+          list_spde[[ls()[i]]] <- eval(parse(text=ls()[i]))
+        }
+        
+        code.test <- paste("inla(formula=ListAppShiny_MixtureModel$formula_inla, family = ListAppShiny_MixtureModel$family_inla,",
+                           "Ntrials = ListAppShiny_MixtureModel$Ntrials_inla,",
+                           "data = inla.stack.data(ListAppShiny_MixtureModel$Total.stack),",
+                           "control.predictor = list(A = inla.stack.A(ListAppShiny_MixtureModel$Total.stack), compute = TRUE, link = 1),",
+                           "control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),",
+                           "control.inla=ListAppShiny_MixtureModel$controlINLA, control.family=ListAppShiny_MixtureModel$controlFamily,",
+                           "control.mode=ListAppShiny_MixtureModel$controlModeTheta,",
+                           "inla.mode=ListAppShiny_MixtureModel$control_inla.mode,",
+                           "verbose=FALSE)")
+        
+        ListAppShiny_MixtureModel <- list(family_inla=family_inla, formula_inla=formula_inla, Ntrials_inla=Ntrials_inla,
+                                          Total.stack=Total.stack, mesh=mesh, list_spde=list_spde,
+                                          control.inla=controlINLA, controlFamily=controlFamily, controlModeTheta=controlModeTheta,
+                                          control_inla.mode=control_inla.mode,
+                                          code.test=code.test)
+        test_save <- try(
+          saveRDS(object = ListAppShiny_MixtureModel, file=paste0(input$MixtureSavePath, input$MixtureSaveName)),
+          silent=TRUE
+        )
+        if(class(test_save)!="try-error"){
+          showNotification(ui=paste0("The model information is being saved and stored as ", input$MixtureSavePath, input$MixtureSaveName), duration = NULL)
+        } else{
+          showNotification(ui=paste("An error happened while saving the model."), duration = NULL)
+        }
+      }
+      
+      Mixture.model <- inla(formula=formula_inla, family = c(family_inla,'poisson'),
                             data = inla.stack.data(Total.stack),
+                            Ntrials = Ntrials_inla,
                             E = inla.stack.data(Total.stack)$e,
                             control.inla = controlINLA,
                             control.predictor = list(A = inla.stack.A(Total.stack), compute = TRUE, link = 1),
                             control.family = controlFamily,
                             control.mode = controlModeTheta,
                             control.compute = list(cpo = TRUE, dic = TRUE, waic = TRUE, config = TRUE),
-                            inla.mode=input$INLAModeMixture,
+                            inla.mode=control_inla.mode,
                             verbose=FALSE)
 
       index.pred <- inla.stack.index(Total.stack, "Prediction_geo")$data

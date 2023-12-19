@@ -25,6 +25,10 @@ if (!require("utils", quietly = TRUE)) {
   install.packages("utils")
 }
 
+if (!require("stringr", quietly = TRUE)) {
+  install.packages("stringr")
+}
+
 if (!require("INLA", quietly = TRUE)) {
   
 }
@@ -37,6 +41,10 @@ if (!require("fmesher", quietly = TRUE)) {
 if (!require("ggplot2", quietly = TRUE)) {
   install.packages("ggplot2")
 }
+if (!require("ggtext", quietly = TRUE)) {
+  install.packages("ggtext")
+}
+ 
 
 if (!require("dplyr", quietly = TRUE)) {
   install.packages("dplyr")
@@ -74,13 +82,14 @@ library(INLA)
 library(inlabru)
 library(fmesher)
 library(ggplot2)
+library(ggtext)
 library(lattice)
 library(rintrojs)
 library(patchwork)
 library(viridis)
 library(sp)
 library(sf)
-# library(rgeos)
+library(stringr)
 library(dplyr)
 library(gridExtra)
 
@@ -109,7 +118,7 @@ sidebar <- dashboardSidebar(
     ),
     menuItem("Data Simulation", tabName = "datasimulation", icon = icon("database")),
     menuItem("Upload Data", tabName = "dataloading", icon = icon("copy", lib = "glyphicon")),
-    menuItem("Model Analysis",
+    menuItem("Model Fitting",
       tabName = "modelanalysis", icon = icon("chart-line"), expandedName = "MAexpand",
       menuSubItem("Independent Model", tabName = "modind"),
       menuSubItem("LGCP Model", tabName = "modlgcp"),
@@ -157,35 +166,60 @@ body <- dashboardBody(
       fluidRow(
         column(
           width = 12,
-          h1("Introduction", style = "color: DarkRed; text-align: center; text-decoration: underline; font-weight: bold"),
+          box(title = h1("Introduction", style = "color: White; text-align: center; text-decoration: underline; font-weight: bold", align = "center"), 
+              width=12, status = "primary", solidHeader = TRUE,
+          # h1("Introduction", style = "color: DarkRed; text-align: center; text-decoration: underline; font-weight: bold"),
           withMathJax(),
-          p("The funtionality of this shiny app is to solve two kinds of spatial models using the Bayesian approach and the INLA methodology. 
-                    Bayesian approach is one statistic paradigm in which the parameters are considered as random variables, so they will have distribution functions estimated though Bayes' theorem. 
-                    The INLA methodology is a deterministic approximation for hierarchical bayesian models with an underlayng Gaussian field structure for the parameters.
-                    The two kinds of models to resolve are (i) a geostatistical model and (ii) a specific joint model; which are now briefly described. 
-                    Although they will be explained in more detail in their corresponding sections, where you will find a", span("Summary", style = "font-style: italic"), "to show such information."),
+          p("This Shiny app is designed to employ the Bayesian approach and the INLA methodology for solving four distinct spatial models. 
+          The Bayesian approach is a statistical paradigm where parameters are treated as random variables, and their distribution functions are estimated through Bayes' theorem."),
+          p("The INLA methodology, on the other hand, serves as a deterministic approximation for hierarchical Bayesian models, incorporating an underlying Gaussian field structure for the parameters. 
+            The app aims to address the following two types of models:"),
+          HTML("
+                    
+                    <ol>
+                    <li> <strong><i>(i) Independent Model (Geostatistical model) </i></strong></li>
+                    <li> <strong><i>(i) Log-Gaussian Cox Process </i></strong></li>
+                    <li> <strong><i>(i) Preferential Model </i></strong></li>
+                    <li> <strong><i>(i) Mixture Model </i></strong></li>
+                    </ol>"),
+          p("Brief descriptions of these models are provided below."),
+          h3("1. Independent model"),
           p("The structure of the geoestatistical model for the response variable \\(y\\) is the following, in which the likelihood function \\(f(\\cdot)\\) of observations \\(y\\) is related to the predictor by means of the link function \\(g(\\cdot)\\):"),
           helpText("\\begin{equation}
                            \\begin{array}{c}
                            y_i \\sim f(y_i|\\boldsymbol\\theta),\\\\
-                           g(E(y_i)) = g(\\mu_i) = \\beta_0 + \\mathbf{X}_i\\boldsymbol\\beta + u_i.
+                           g(E(y_i)) = g(\\mu_i) = \\beta_0 + \\mathbf{X}_i\\boldsymbol\\beta + \\sum_k f_k(z_{ik}|\\boldsymbol\\theta_k) + u_i.
                            \\end{array}
                            \\end{equation}"),
           p(paste0(
-            "Where \\(\\beta_0\\) is the intercept, ", "\\(\\mathbf{X}\\) ", "are the explanatory variables and ",
-            "\\(\\boldsymbol\\beta\\) the parameters, ",
-            "meanwhile ", "\\(u_i\\) ", "is the spatial effect."
+            "Where \\(\\beta_0\\) is the intercept, ", "\\(\\mathbf{X}\\) ", "are the explanatory variables, ",
+            "\\(\\boldsymbol\\beta\\) the parameters, ", "\\(f_k(z_{k})\\)", " are smothing terms ",
+            "and ", "\\(u_i\\) ", "is the spatial effect."
           )),
-          p("The specific joint model we are using combines two likelihoods, one related to the geostatistical data and another related to the locations. 
-                    Between the two likelihoods we have one or more shared components (for us only the spatial term is shared), 
-                    what implies that their estimates would be done though both likelihoods. 
-                    The structure of this joint model is:"),
+          h3("2. Log-Gaussian Cox process (LGCP)"),
+          p(paste0("The second model we consider is the log-Gaussian Cox Process (LGCP) model. This model facilitates the assessment of the process that generates the locations of a sample.
+            The specific positions of observed events are influenced by an underlying spatial process, typically represented through an intensity function, ", "\\lambda(s_i)",
+            ". This function denotes the average event count per spatial unit and can be shaped by various factors, including covariates and other random effects, 
+            whether structured or unstructured:
+            ")),
+          helpText("\\begin{equation}
+                           \\begin{array}{c}
+                           s_i \\sim LGCP(s_i|\\boldsymbol\\theta),\\\\
+                           \\log(E(\\lambda_i)) = \\log(\\lambda_i)= \\beta_0 + \\mathbf{X}_i \\boldsymbol\\beta + \\sum_k f_k(z_{ik}|\\boldsymbol\\theta_k) + \\alpha \\cdot u_i.
+                           \\end{array}
+                           \\end{equation}"),
+          p(paste0("where we have defined the latent structure for the intensity function with linear ", "\\(\\boldsymbol\\beta\\)", ", non-linear ", "\\(f_k(z_{k})\\)", 
+                   " effects and one spatially structured random effect ", "\\(u_i\\)", "." )),
+          h3("3. Preferential model"),
+          p("The preferential model combines two likelihoods, one related to the geostatistical data (response variable or mark values) and another related to the poin pattern of the locations.
+          Between the two likelihoods we have one or more shared components (for us only the spatial term is shared), 
+          what implies that their estimates would be done though both likelihoods. The structure of the model can be written as:"),
           helpText("\\begin{equation}
                             \\begin{array}{c}
                            y_i \\sim f(y_i|\\boldsymbol\\theta),\\\\
-                           p_i \\sim Poisson(p_i|\\boldsymbol\\theta),\\\\
-                           g(E(y_i)) = g(\\mu_i)= \\beta_0 + \\mathbf{X}_i\\boldsymbol\\beta + u_i,\\\\
-                           \\log(E(\\lambda_i)) = \\log(\\lambda_i)= \\beta_0' + \\mathbf{X}_i \\boldsymbol\\beta' + \\alpha \\cdot u_i.
+                           s_i \\sim LGCP(s_i|\\boldsymbol\\theta),\\\\
+                           g(E(y_i)) = g(\\mu_i)= \\beta_0 + \\mathbf{X}_i\\boldsymbol\\beta + \\sum_k f_k(z_{ik}|\\boldsymbol\\theta_k) + u_i,\\\\
+                           \\log(E(\\lambda_i)) = \\log(\\lambda_i)= \\beta_0' + \\mathbf{X}_i \\boldsymbol\\beta' + \\sum_k f_k(z_{ik}) + \\alpha \\cdot u_i.
                            \\end{array}
                            \\end{equation}"),
           p("Where the intercept for the geostatistical layer is \\(\\beta_0\\) and 
@@ -193,14 +227,28 @@ body <- dashboardBody(
                     \\(\\mathbf{X}\\) are the explanatory variables, \\(\\boldsymbol\\beta\\) the parameters of the geostatistical layer and
                     \\(\\boldsymbol\\beta'\\) the parameters of the point process layer. Meanwhile \\(u_i\\) is the spatial effect and
                     \\(\\alpha\\) is a internal shared parameter, a scale term."),
+          h3("4. Mixture model"),
+          p(paste("In the Mixture Model we assume that the wole data is a mixture of different data sets coming from several sampling structures.", 
+                  "Hence, this model integrates a geostatistical process for analyzing the values of the marks along with multiple Log-Gaussian Cox Processes (LGCP) 
+                  for each dataset originating from distinct preferential sampling processes:")),
+          helpText("\\begin{equation}
+                            \\begin{array}{c}
+                           y_i \\sim f(y_i|\\boldsymbol\\theta),\\\\
+                           s^k_i \\sim LGCP(s^k_i|\\boldsymbol\\theta^k),\\\\
+                           g(E(y_i)) = g(\\mu_i)= \\beta_0 + \\mathbf{X}_i\\boldsymbol\\beta + \\sum_j f_j(z_{ij}|\\boldsymbol\\theta_j) + u_i,\\\\
+                           \\log(E(\\lambda^k_i)) = \\log(\\lambda^k_i)= \\beta^k_0 + \\mathbf{X}_i \\boldsymbol\\beta^k + \\sum_j f_j(z_{ij}|\\boldsymbol\\theta^k_j) + \\alpha^k \\cdot u_i.
+                           \\end{array}
+                           \\end{equation}"),
+          p("Where the parameters have the same meaning as in the preferential model, but with the particularity that in the LGCP process we have the label \\(k\\) 
+            to differentiate the inference parameters for the different LGCPs associated to the corresponding group of samples."),
           br(),
           p(
             "Therefore, the application allows to simulate an example data to test the inference results controlling its parameters and also allows data loading and modeling, 
                     according to the model structures showed previosly. The simulation is done in the", span("Simulation Data", style = "font-style: italic"),
             "section, in which is possible to control the parameters that regulates the simulation of the covariables, intercept, spatial effect and the geostatistical data output. 
-                    In te next section", span("(Model Analysis)", style = "font-style: italic"), "is possible to shape the inference through some buttons implemented in the UI, which make it possible to control the basic prior parameters for intercept, explanatory variables, spatial effect and the likelihood function, 
+                    In te next section", span("(Model Fitting)", style = "font-style: italic"), "is possible to shape the inference through some buttons implemented in the UI, which make it possible to control the basic prior parameters for intercept, explanatory variables, spatial effect and the likelihood function, 
                     as well as for specific INLA controll elements. These controll items are defined in", span("Advance INLA config.", style = "font-style: italic"), "where we can define the modes for the hyperparameters, the approximation type and the integration strategy."
-          ),
+          )),
         )
       )
     ),
@@ -209,49 +257,51 @@ body <- dashboardBody(
       fluidRow(
         column(
           width = 12,
-          h1("Glosary", style = "color: DarkRed; text-align: center; text-decoration: underline; font-weight: bold"),
-          br(),
+          box(
+            width = 12, title = h1("Glosary", style = "color: White; text-align: center; text-decoration: underline; font-weight: bold", align = "center"),
+            status = "primary", solidHeader = TRUE,
           p("Since this application is intended for all kind of users, a glossary is included containing a brief selection of terms, with some explanations, as they are used along the whole application.
-                    This glosary has two ordered levels, one by field and the second ordered by the terms belonging to that specific field."),
+                    This  has two ordered levels, one by field and the second ordered by the terms belonging to that specific field."),
           tags$div(
             HTML("
-                    <ul> <strong>Bayesian inference:</strong>
+                    <ul> <h3><strong>Bayesian inference:</strong></h3>
                     <ol>
-                    <li> <i>Bayes' theorem (conditional probability distribution):</i> A fundamental theorem in probability theory that describes the probability of an event based on prior knowledge of conditions that might be related to the event. It is named after the Reverend Thomas Bayes and provides a way to update probabilities as new evidence or information becomes available. </li>
-                    <li> <i>Hierarchical model:</i> A statistical model that includes nested levels of parameters or random effects. In hierarchical modeling, data are assumed to have a structure that allows for variation at multiple levels, and it is particularly useful when dealing with grouped, clustered or high complex data.</li>
-                    <li> <i>Model parameter(s):</i> The parameters in a statistical model are the coefficients or constants that define the model. They are the values that need to be estimated from the data, and they influence the shape and characteristics of the model. </li>
-                    <li> <i>Likelihood:</i> The likelihood function represents the probability of observing the given data given a particular set of parameter values in a statistical model. It is a key component in Bayesian and frequentist statistical inference. </li>
-                    <li> <i>Link function:</i> In generalized linear models (GLM), the link function describes the relationship between the linear predictor and the mean of the distribution function. It connects the linear combination of predictors to the parameters of the distribution. </li>
-                    <li> <i>Marginal distribution(s):</i> The distribution of one or more variables in a subset of a larger set of variables, obtained by integrating or summing over the other variables. It provides information about the probability distribution of a subset of variables, ignoring the values of the other variables. </li>
-                    <li> <i>Mean:</i> A measure of central tendency that represents the average value of a set of data points. It is calculated by summing up all values and dividing by the number of observations. </li>
-                    <li> <i>Mode:</i> The mode of a distribution is the value that occurs most frequently. In a dataset, it is the data point with the highest frequency. </li>
-                    <li> <i>Prior distribution:</i> The prior distribution represents the initial beliefs or knowledge about the parameters before observing the data. It is an essential component in Bayesian statistics and is updated to the posterior distribution through Bayes' theorem. </li>
-                    <li> <i>Prior predictive distribution:</i> The prior predictive distribution incorporates uncertainty from the prior distribution to generate predictions before observing any data. It represents the range of possible outcomes based on the initial beliefs about the parameters. </li>
-                    <li> <i>Posterior distribution:</i> In Bayesian statistics, the posterior distribution is the updated probability distribution of the parameters after taking into consideration the observed data and the prior distribution. It is obtained using Bayes' theorem. </li>
-                    <li> <i>Posterior predictive distribution:</i> This distribution combines the information from the likelihood and the posterior distribution to make predictions for future observations. It reflects the uncertainty in predictions by considering both the uncertainty in parameters and the variability in the data. </li>
+                    <li> <strong><i>Bayes' theorem (conditional probability distribution):</i></strong> A fundamental theorem in probability theory that describes the probability of an event based on prior knowledge of conditions that might be related to the event. It is named after the Reverend Thomas Bayes and provides a way to update probabilities as new evidence or information becomes available. </li>
+                    <li> <strong><i>Hierarchical model:</i></strong> A statistical model that includes nested levels of parameters or random effects. In hierarchical modeling, data are assumed to have a structure that allows for variation at multiple levels, and it is particularly useful when dealing with grouped, clustered or high complex data.</li>
+                    <li> <strong><i>Model parameter(s):</i></strong> The parameters in a statistical model are the coefficients or constants that define the model. They are the values that need to be estimated from the data, and they influence the shape and characteristics of the model. </li>
+                    <li> <strong><i>Likelihood:</i></strong> The likelihood function represents the probability of observing the given data given a particular set of parameter values in a statistical model. It is a key component in Bayesian and frequentist statistical inference. </li>
+                    <li> <strong><i>Link function:</i></strong> In generalized linear models (GLM), the link function describes the relationship between the linear predictor and the mean of the distribution function. It connects the linear combination of predictors to the parameters of the distribution. </li>
+                    <li> <strong><i>Marginal distribution(s):</i></strong> The distribution of one or more variables in a subset of a larger set of variables, obtained by integrating or summing over the other variables. It provides information about the probability distribution of a subset of variables, ignoring the values of the other variables. </li>
+                    <li> <strong><i>Mean:</i></strong> A measure of central tendency that represents the average value of a set of data points. It is calculated by summing up all values and dividing by the number of observations. </li>
+                    <li> <strong><i>Mode:</i></strong> The mode of a distribution is the value that occurs most frequently. In a dataset, it is the data point with the highest frequency. </li>
+                    <li> <strong><i>Prior distribution:</i></strong> The prior distribution represents the initial beliefs or knowledge about the parameters before observing the data. It is an essential component in Bayesian statistics and is updated to the posterior distribution through Bayes' theorem. </li>
+                    <li> <strong><i>Prior predictive distribution:</i></strong> The prior predictive distribution incorporates uncertainty from the prior distribution to generate predictions before observing any data. It represents the range of possible outcomes based on the initial beliefs about the parameters. </li>
+                    <li> <strong><i>Posterior distribution:</i></strong> In Bayesian statistics, the posterior distribution is the updated probability distribution of the parameters after taking into consideration the observed data and the prior distribution. It is obtained using Bayes' theorem. </li>
+                    <li> <strong><i>Posterior predictive distribution:</i></strong> This distribution combines the information from the likelihood and the posterior distribution to make predictions for future observations. It reflects the uncertainty in predictions by considering both the uncertainty in parameters and the variability in the data. </li>
                     </ol>
                     </ul>
                     
-                    <ul> <strong>INLA basic elements:</strong>
+                    <ul> <h3><strong>INLA basic elements:</strong></h3>
                     <ol>
-                    <li> <i>Aproximation strategy:</i> INLA provides three distinct methods for approximating non-Gaussian data. These methods include a straightforward Gaussian approximation, a simplified Laplace approach—which is essentially a Gaussian approximation refined through spline correction—and the Laplace approximation, involving the utilization of two nested Gaussian approximations. </li>
-                    <li> <i>Integration strategy:</i> </li>
-                    <li> <i>Latent field:</i> A latent field refers to an unobserved, underlying random field that is part of the statistical model. In INLA, the latent field represents the unobservable values or processes of interest. </li>
-                    <li> <i>Gaussian Field (GF):</i> A Gaussian field is a type of random field where the distribution of the values at any finite collection of points follows a multivariate normal (Gaussian) distribution. Gaussian fields are commonly used in spatial statistics and geostatistics to model spatial variability or dependence. </li>
-                    <li> <i>Gaussian Markov Random Field (GMRF):</i> A Gaussian Markov Random Field (GMRF) is a type of random field where the conditional distribution of each random variable, given the values of all other variables, is Gaussian and the variables are associated with a graph structure. GMRFs are used in spatial statistics and Bayesian modeling to represent spatial dependence in a computationally efficient manner, often making use of sparse precision matrices. The 'Markov' aspect implies that the conditional independence structure is defined by a Markov property on the underlying graph. </li>
+                    <li> <strong><i>Aproximation strategy:</i></strong> INLA provides three distinct methods for approximating non-Gaussian data. These methods include a straightforward Gaussian approximation, a simplified Laplace approach—which is essentially a Gaussian approximation refined through spline correction—and the Laplace approximation, involving the utilization of two nested Gaussian approximations. </li>
+                    <li> <strong><i>Integration strategy:</i></strong> INLA provides three different methods for the integration of the hyperparameters when the mode set to 'classic'. These three strategies are the grid, the center composite design and empirical bayes.</li>
+                    <li> <strong><i>Latent field:</i></strong> A latent field refers to an unobserved, underlying random field that is part of the statistical model. In INLA, the latent field represents the unobservable values or processes of interest. </li>
+                    <li> <strong><i>Gaussian Field (GF):</i></strong> A Gaussian field is a type of random field where the distribution of the values at any finite collection of points follows a multivariate normal (Gaussian) distribution. Gaussian fields are commonly used in spatial statistics and geostatistics to model spatial variability or dependence. </li>
+                    <li> <strong><i>Gaussian Markov Random Field (GMRF):</i></strong> A Gaussian Markov Random Field (GMRF) is a type of random field where the conditional distribution of each random variable, given the values of all other variables, is Gaussian and the variables are associated with a graph structure. GMRFs are used in spatial statistics and Bayesian modeling to represent spatial dependence in a computationally efficient manner, often making use of sparse precision matrices. The 'Markov' aspect implies that the conditional independence structure is defined by a Markov property on the underlying graph. </li>
                     </ol>
                     </ul>
                     
-                    <ul> <strong>INLA spatial approach:</strong>
+                    <ul> <h3><strong>INLA spatial approach:</strong></h3>
                     <ol>
-                    <li> <i>Finite Element Method (FEM):</i> A numerical technique for finding approximate solutions to boundary value problems for partial differential equations. It involves subdividing a complex system into smaller, simpler parts called finite elements. The behavior of each element is then described by a set of mathematical equations, and the solutions are combined to approximate the behavior of the entire system. </li>
-                    <li> <i>Matérn covariance function:</i> A mathematical function commonly used in spatial statistics and geostatistics to model the correlation or covariance between spatial data points. The Matérn covariance function is characterized by a smoothness parameter that influences the smoothness of the resulting spatial process. </li>
-                    <li> <i>Mesh:</i> In the context of the Integrated Nested Laplace Approximation (INLA), a mesh refers to a discretization of the spatial domain. The mesh is used to represent the spatial structure of the data and is essential for the computational aspects of INLA. </li>
-                    <li> <i>Stochastic Partial Differential Equation (SPDE)</i>: A type of partial differential equation where one or more of the parameters or coefficients are subject to random variations. SPDEs are often used in the modeling of random fields and spatial processes. They provide a framework for describing the behavior of systems that exhibit both spatial variability and randomness. The use of SPDEs is common in Bayesian spatial statistics and geostatistics. </li>
+                    <li> <strong><i>Finite Element Method (FEM):</i></strong> A numerical technique for finding approximate solutions to boundary value problems for partial differential equations. It involves subdividing a complex system into smaller, simpler parts called finite elements. The behavior of each element is then described by a set of mathematical equations, and the solutions are combined to approximate the behavior of the entire system. </li>
+                    <li> <strong><i>Matèrn covariance function:</i></strong> A mathematical function commonly used in spatial statistics and geostatistics to model the correlation or covariance between spatial data points. The Matérn covariance function is characterized by a smoothness parameter that influences the smoothness of the resulting spatial process. </li>
+                    <li> <strong><i>Mesh:</i></strong> In the context of the Integrated Nested Laplace Approximation (INLA), a mesh refers to a discretization of the spatial domain. The mesh is used to represent the spatial structure of the data and is essential for the computational aspects of INLA. </li>
+                    <li> <strong><i>Stochastic Partial Differential Equation (SPDE):</i></strong> A type of partial differential equation where one or more of the parameters or coefficients are subject to random variations. SPDEs are often used in the modeling of random fields and spatial processes. They provide a framework for describing the behavior of systems that exhibit both spatial variability and randomness. The use of SPDEs is common in Bayesian spatial statistics and geostatistics. </li>
                     </ol>
                     </ul>
                          
                          ")
+            )
           )
         )
       )
@@ -266,41 +316,42 @@ body <- dashboardBody(
           column(
             width = 12,
             mainPanel(
-              h1("Summary", style = "color: DarkRed; text-align: center; text-decoration: underline; font-weight: bold"),
-              withMathJax(),
-              p("In this section we will explain in some detail the structure and code used for data simulation. The main data \\(y\\) is reated to 
+              box(title = h1("Summary", style = "color: White; text-align: center; text-decoration: underline; font-weight: bold", align = "center"), 
+                  width=12, status = "primary", solidHeader = TRUE,
+                withMathJax(),
+                p("In this section we will explain in some detail the structure and code used for data simulation. The main data \\(y\\) is reated to 
                         the geostatistical likelihood, which is built from the model structure data: intercept, bathymetry (one numerical covariate) and spatial data. "),
-              p("As we have showed previosly the model structure is:"),
-              helpText("\\begin{equation}
+                p("As we have showed previosly the model structure is:"),
+                helpText("\\begin{equation}
                                 \\begin{array}{c}
                                y_i \\sim f(y_i|\\boldsymbol\\theta),\\\\
                                g(\\mu_i)= \\beta_0 +\\mathbf{X}_i\\boldsymbol\\beta + u_i.
                                \\end{array}
                                \\end{equation}"),
-              p("But it must be clear that since the app is built for spatial modeling the data is set in a subregion \\(\\mathcal{D}\\subset\\mathbb{R}^2\\). 
+                p("But it must be clear that since the app is built for spatial modeling the data is set in a subregion \\(\\mathcal{D}\\subset\\mathbb{R}^2\\). 
                         Therefore the first elements to configure are related to the study region specifications:"),
-              tags$div(
-                HTML("<ol>
+                tags$div(
+                  HTML("<ol>
                                 <li> Analysis area: a square region governed by the user-specified upper and lower limits.</li>
                                 <li> Vector dimension: the grid dimension for spatial simulation. </li>
                                 <li> Map resolution: the final grid dimensión resulting from a <i>Finite Elemente Method</i> (FEM) projection of the first grid simulation, which means a map resolution increase. </li>
                              </ol>")
-              ),
-              tags$div(
-                HTML("Subsequently , two items are available to control the randomness of the stochastic process: <i>Global seed</i> and <i> Spatial effect seed</i>. 
+                ),
+                tags$div(
+                  HTML("Subsequently , two items are available to control the randomness of the stochastic process: <i>Global seed</i> and <i> Spatial effect seed</i>. 
                              The first rules the randomness of the whole geostatistic process simulation, meanwhile the latter controls the specific randomness of the spatial effect simulation.")
-              ),
-              br(),
-              tags$div(
-                HTML(
-                  "With respect to the simulation of the spatial effect, given that it is characterized by the \\(u_i \\sim N(\\mathbf{0}, \\boldsymbol\\Sigma) \\) expression, 
+                ),
+                br(),
+                tags$div(
+                  HTML(
+                    "With respect to the simulation of the spatial effect, given that it is characterized by the \\(u_i \\sim N(\\mathbf{0}, \\boldsymbol\\Sigma) \\) expression, 
                           where the variace matrix is determined by a Matérn covariance function \\(\\Sigma=\\sigma \\cdot C_{\\nu}(d, \\rho)\\) with two parameters: spatial range \\(\\rho\\) and standard marginal deviation \\(\\sigma\\). Two numerical inputs are availabled in the UI to stablish the values for such parameters."
-                )
-              ),
-              br(),
-              tags$div(
-                HTML(
-                  "For the covariate we can define the formula (<i>Covariate formula</i>) and choose the effect type:
+                    )
+                ),
+                br(),
+                tags$div(
+                  HTML(
+                    "For the covariate we can define the formula (<i>Covariate formula</i>) and choose the effect type:
                           <ol> 
                           <li> Linear: the value of its effect will be set in <i> Predictor coefficients</i>.</li>
                           <li> Random walk (1o): we can configure the first order random walk \\(\\Delta x_i= x_i - x_{i-1}=N(0, \\tau)\\) through the following parameters: an initial value \\(x_0\\), the precision \\(\\tau\\), the number of knots for simulate the random walk, and the limit values which can't be traspassing by any \\(x_i\\) of the random walk.</li>
@@ -312,21 +363,21 @@ body <- dashboardBody(
                           (i) first, the <n> knots are located at equally distances between the minimum and maximum values of the covariate, 
                           (ii) a linear interpolation between every knot is dont by taking every simulated value of the covariate and 
                           (iii) finally, it is checked if any resulting value exceeds the indicated limits for the effect, so that if it does, the two previous steps are repeated until the condition is met. The <i>predictor coefficients</i> allow to define the itercept and the linear effect, if this was chosen for the covariate.</i>"
-                )
-              ),
-              br(),
-              p("Our response variable is \\(y\\), a variable for the geostatistical process implies a continuous variable for the likelihood function or data distribution function. 
+                  )
+                ),
+                br(),
+                p("Our response variable is \\(y\\), a variable for the geostatistical process implies a continuous variable for the likelihood function or data distribution function. 
                         Then a Gamma and Gaussian function could be used by means of its corresponding UI button, allowing to set the distribution for data output:"),
-              helpText("$$f(\\cdot)=\\{N(\\cdot) \\veebar Gamma(\\cdot)\\}.$$"),
-              p("We must also indicate the value of the variance associated with the likelihood distribution."),
-              br(),
-              tags$div(
-                HTML("Finally, we explain the section dedicated to the simulation of both <i>independent</i> (iid) and <i>preferential</i> sampling.
+                helpText("$$f(\\cdot)=\\{N(\\cdot) \\veebar Gamma(\\cdot)\\}.$$"),
+                p("We must also indicate the value of the variance associated with the likelihood distribution."),
+                br(),
+                tags$div(
+                  HTML("Finally, we explain the section dedicated to the simulation of both <i>independent</i> (iid) and <i>preferential</i> sampling.
                         For each of which an option is available to specify the seed of the stochastic sampling process and the number of samples desired.
                              Independent sampling is simply performed using the <code>sample</code> function on the raster resulting from the simulation of the geostatistical data. 
                              Meanwhile, since the specific joint model assumes than the geostatistical and the point process are linked, ")
-              ),
-              helpText("\\begin{equation}
+                ),
+                helpText("\\begin{equation}
                                 \\begin{array}{c}
                                y_i \\sim f(y_i|\\boldsymbol\\theta),\\\\
                                p_i \\sim Poisson(p_i|\\boldsymbol\\theta),\\\\
@@ -334,15 +385,16 @@ body <- dashboardBody(
                                \\log(\\lambda_i)= \\mathbf{X}_i \\boldsymbol\\beta' + \\alpha \\cdot u_i;
                                \\end{array}
                                \\end{equation}"),
-              tags$div(
-                HTML("such that the sampling is preferred by the geoestatistical data. Therefore, for the preferential sampling we will have that the probability associated to each 'point' of the raster is:")
-              ),
-              helpText("\\begin{equation}
+                tags$div(
+                  HTML("such that the sampling is preferred by the geoestatistical data. Therefore, for the preferential sampling we will have that the probability associated to each 'point' of the raster is:")
+                ),
+                helpText("\\begin{equation}
                                p_i=\\frac{\\exp[r\\cdot y_i]}{\\sum_i\\exp[r \\cdot y_i]\\cdot S_i}  ) \\propto \\exp[ r\\cdot y_i].
                                \\end{equation}"),
-              tags$div(
-                HTML("Where \\( r \\) is the preferential degree, how much the geostatistical values influed in the sampling, \\(y_i\\) is the value of the observed variable and \\( S_i \\) is surface related to the raster pixel \\( i \\). 
+                tags$div(
+                  HTML("Where \\( r \\) is the preferential degree, how much the geostatistical values influed in the sampling, \\(y_i\\) is the value of the observed variable and \\( S_i \\) is surface related to the raster pixel \\( i \\). 
                              Then, \\(\\mathbf{p}=\\{p_1,p_2,...,p_n\\}\\) is the vector we will use in the argument <i>prob</i> of <code>sample(x, size, prob)</code> for the preferential sampling.")
+                )
               ),
               br()
             )
@@ -482,7 +534,7 @@ body <- dashboardBody(
                   box(
                     status = "info", title = "Custom function", width = 12, solidHeader = TRUE,
                     textInput("formula.eff.bathymetry",
-                      label = "Covariate effect formula (b)",
+                      label = "Bathymetry effect formula (b)",
                       value = "0.3 + 0.5*b + 1.5*(b-mean(b))**3 + rnorm(length(b), 0, 0.01)",
                       placeholder = "0.1+b+b**2"
                     )
@@ -762,7 +814,8 @@ body <- dashboardBody(
             # style= 'padding-bottom:15px',
             width = 12,
             mainPanel(
-              h1("Summary", style = "color: DarkRed; text-align: center; text-decoration: underline; font-weight: bold"),
+              box(title = h1("Summary", style = "color: White; text-align: center; text-decoration: underline; font-weight: bold", align = "center"), 
+                  width=12, status = "primary", solidHeader = TRUE,
               withMathJax(),
               tags$div(
                 HTML("In this section we briefly explain how data reading works in this app. For this purpose, there are two elements in the UI: 
@@ -772,7 +825,7 @@ body <- dashboardBody(
                               </ol>
                                Once any data frame is loaded its table and a plot will appear in the interface.  
                                ")
-              ),
+              )),
               br()
             )
           )
@@ -879,7 +932,17 @@ body <- dashboardBody(
       fluidRow(
         box(
           width = 3,
-          actionButton("fitInd", label = "Fit Model", width = "100%", icon = icon("jedi-order")),
+          actionButton("fitInd", label = "Fit Model", width = "100%", icon = icon("jedi-order")), br(), br(),
+          box(id = "SaveIndModel", width = 12, title = "Save model data and code", closable = FALSE,
+              status = "info", collapsible = TRUE, collapsed = TRUE, solidHeader = TRUE,
+              prettyToggle(
+                inputId = "saveInd",
+                label_on = "Save", 
+                label_off = "Do not save"
+              ),
+              textInput(inputId = "IndSavePath", label = "Absolute path to save the model", value = "", placeholder = "C:/example/example/"),
+              textInput(inputId = "IndSaveName", label = "Filename", value = "Ind_example.RDS", placeholder = "Ind_example.RDS")
+          ),
           selectInput("IndDataSimulatedLoaded",
                       label = "Select data to be analyzed",
                       choices = list("Simulated" = "sim", "Loaded" = "load"), selected = "sim"
@@ -1013,6 +1076,11 @@ body <- dashboardBody(
                 )
               )
             )
+          ),
+          box(
+            id = "IndResponseVariable", width = 12, title = "Response variable",
+            status = "info", solidHeader = TRUE, collapsible = TRUE,
+            uiOutput("UserResponseInd")
           ),
           box(
             id = "IndDefaultComponents", width = 12, title = "Intercept and Explanatory Variables",
@@ -1185,7 +1253,7 @@ body <- dashboardBody(
         conditionalPanel(
           condition = "input.fitInd>=1",
           box(
-            title = "Inderential model results", width = 9, collapsible = TRUE, solidHeader = TRUE, status = "primary",
+            title = "Independent model results", width = 9, collapsible = TRUE, solidHeader = TRUE, status = "primary",
             box(
               title = "Response predictive maps", solidHeader = TRUE,
               collapsible = TRUE, width = 12, status = "info",
@@ -1320,7 +1388,17 @@ body <- dashboardBody(
       fluidRow(
         box(
           width = 3,
-          actionButton("fitLgcp", label = "Fit Model", width = "100%", icon = icon("jedi-order")),
+          actionButton("fitLgcp", label = "Fit Model", width = "100%", icon = icon("jedi-order")), br(), br(),
+          box(id = "SaveLgcpModel", width = 12, title = "Save model data and code", closable = FALSE,
+              status = "info", collapsible = TRUE, collapsed = TRUE, solidHeader = TRUE,
+              prettyToggle(
+                inputId = "saveLgcp",
+                label_on = "Save", 
+                label_off = "Do not save"
+              ),
+              textInput(inputId = "LgcpSavePath", label = "Absolute path to save the model", value = "", placeholder = "C:/example/example/"),
+              textInput(inputId = "LgcpSaveName", label = "Filename", value = "Lgcp_example.RDS", placeholder = "Lgcp_example.RDS")
+          ),
           selectInput("LgcpDataSimulatedLoaded",
                       label = "Select data to be analyzed",
                       choices = list("Simulated" = "sim", "Loaded" = "load"), selected = "sim"
@@ -1762,7 +1840,17 @@ body <- dashboardBody(
       fluidRow(
         box(
           width = 3,
-          actionButton("fitPref", label = "Fit Model", width = "100%", icon = icon("jedi-order")),
+          actionButton("fitPref", label = "Fit Model", width = "100%", icon = icon("jedi-order")), br(), br(),
+          box(id = "SavePrefModel", width = 12, title = "Save model data and code", closable = FALSE,
+              status = "info", collapsible = TRUE, collapsed = TRUE, solidHeader = TRUE,
+              prettyToggle(
+                inputId = "savePref",
+                label_on = "Save", 
+                label_off = "Do not save"
+              ),
+              textInput(inputId = "PrefSavePath", label = "Absolute path to save the model", value = "", placeholder = "C:/example/example/"),
+              textInput(inputId = "PrefSaveName", label = "Filename", value = "Pref_example.RDS", placeholder = "Pref_example.RDS")
+              ),
           selectInput("PrefDataSimulatedLoaded",
                       label = "Select data to be analyzed",
                       choices = list("Simulated" = "sim", "Loaded" = "load"), selected = "sim"
@@ -1896,6 +1984,11 @@ body <- dashboardBody(
                 )
               )
             )
+          ),
+          box(
+            id = "PrefResponseVariable", width = 12, title = "Response variable",
+            status = "info", solidHeader = TRUE, collapsible = TRUE,
+            uiOutput("UserResponsePref")
           ),
           box(
             id = "PrefDefaultComponents", width = 12, title = "Intercept and Explanatory Variables",
@@ -2204,7 +2297,17 @@ body <- dashboardBody(
       fluidRow(
         box(
           width = 3,
-          actionButton("fitMixture", label = "Fit Model", width = "100%", icon = icon("jedi-order")),
+          actionButton("fitMixture", label = "Fit Model", width = "100%", icon = icon("jedi-order")), br(), br(),
+          box(id = "SaveMixtureModel", width = 12, title = "Save model data and code", closable = FALSE,
+              status = "info", collapsible = TRUE, collapsed = TRUE, solidHeader = TRUE,
+              prettyToggle(
+                inputId = "saveMixture",
+                label_on = "Save", 
+                label_off = "Do not save"
+              ),
+              textInput(inputId = "MixtureSavePath", label = "Absolute path to save the model", value = "", placeholder = "C:/example/example/"),
+              textInput(inputId = "MixtureSaveName", label = "Filename", value = "Mixture_example.RDS", placeholder = "Mixture_example.RDS")
+          ),
           selectInput("MixtureDataSimulatedLoaded",
                       label = "Select data to be analyzed",
                       choices = list("Simulated" = "sim", "Loaded" = "load"), selected = "sim"
@@ -2338,6 +2441,11 @@ body <- dashboardBody(
                 )
               )
             )
+          ),
+          box(
+            id = "MixtureResponseVariable", width = 12, title = "Response variable",
+            status = "info", solidHeader = TRUE, collapsible = TRUE,
+            uiOutput("UserResponseMixture")
           ),
           box(
             id = "MixtureDefaultComponents", width = 12, title = "Intercept and Explanatory Variables",
