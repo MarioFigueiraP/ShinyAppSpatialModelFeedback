@@ -48,11 +48,11 @@ install.packages("INLA",
 install.packages("inlabru")
 install.packages("fmesher")
 install.packages("ggplot2")
+install.packages("ggtext")
 install.packages("lattice")
 install.packages("rintrojs")
 install.packages("patchwork")
 install.packages("viridis")
-install.packages("rgeos")
 install.packages("dplyr")
 ```
 
