@@ -67,19 +67,19 @@ The app is made up of four major blocks:
 1. Introduction: a brief introduction for the app.
 2. Data Simulation: in this section is possible to simulate some spatial data.
 3. Upload Data: it allows to read some data frame, but there are some rules in which the data must be configure in order to be read properly.
-4. Model Analysis: in this section the simulated or uploaded data can be analyzed by the three available model structures, a geoestatistical model (independent model), specific spatial joint model (dependent model) or a joint model with heterogeneous point process structure (mixture model).
+4. Model Fitting: in this section the simulated or uploaded data can be analyzed by the three available model structures, a geoestatistical model (independent model), specific spatial joint model (dependent model) or a joint model with heterogeneous point process structure (mixture model).
 
 *Data Simulation* and *Upload Data* are sequentially linked to *Model Anaysis*, which means that data from one of the former are taken in the latter. Once the modelling is done, these results can be used to provide feedback or to perform a sequential learning process for a new data set from the same geostatistical phenomenon that could be modeled by one of the three proposed model structures, thanks to the control options available in INLA and configurable in this application.
 
 ```mermaid
 flowchart TD
     A[Introduction]
-    B[Data Simulation]-->D[Model Analysis]
-    C[Upload Data]-->D[Model Analysis]
-    D[Model Analysis]-.->E[Independent Model]
-    D[Model Analysis]-.->F[LGCP Model]
-    D[Model Analysis]-.->G[Preferential Model]
-    D[Model Analysis]-.->H[Mixture Model] 
+    B[Data Simulation]-->D[Model Fitting]
+    C[Upload Data]-->D[Model Fitting]
+    D[Model Fitting]-.->E[Independent Model]
+    D[Model Fitting]-.->F[LGCP Model]
+    D[Model Fitting]-.->G[Preferential Model]
+    D[Model Fitting]-.->H[Mixture Model] 
     E-- Feedback --> I[Alternative Model]
     G-- Feedback --> J[Alternative Model]
     H-- Feedback --> K[Alternative Model]
@@ -134,7 +134,7 @@ $$
 
 This section allows to upload a data frame by the user (<i>Load Analysis Data Frame:</i>), but there are some conditions on the data frame to be read correctly by the application: the first two columns should be the coordinates, the third column the observation data and the others can be the covariates. there is another element of the user interface that enables reading a data frame of explanatory variables (<i>Load Covariates Data Frame</i>). 
 
-<h2> 3. Model Analysis </h2>
+<h2> 3. Model Fitting </h2>
 
 This section presents the inference procedures for spatial data. The four model structures available are (i) an <i>independent model</i>, (ii) a <i>log-Gaussian Cox process model</i>, (iii) a <i>preferential model</i> and (iv) a <i>mixture model</i>, which we will use depending on whether the data come from an independent, preferential sampling or a data mixture from different samplers. The models proposed are Bayesian hierarchical models, which means that the model has to layers of parameters: (i) one layer of parameters directly related to the predictor $\eta_i$, called <i>latent parameters</i>, and (ii) a second layer in which the parameters are related to other parameters, called <i>hyperparameters</i>. Let's see this with a small example:
 
@@ -232,10 +232,10 @@ The third model is a joint model, in which we assume that some process are conne
 
 $$
 \begin{array}{c}
-y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta_G), \\
-s_i \sim LGCP(s_i|\eta_{Pi}, \boldsymbol\theta_P), \\
-g(\mu_i) = \eta_{Gi} = \beta_{G0} + \mathbf{X_i} \boldsymbol\beta_G + u_i, \\
-\log(\lambda_i) = \eta_i' = \beta_{P0} + \mathbf{X_i} \boldsymbol\beta_P + \alpha \cdot u_i, \\
+y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta), \\
+s_i \sim LGCP(s_i|\eta_{Pi}, \boldsymbol\theta'), \\
+g(\mu_i) = \eta_{i} = \beta_{0} + \mathbf{X_i} \boldsymbol\beta  + \sum_k f_k(z_{ik}|\boldsymbol\theta_k) + u_i, \\
+\log(\lambda_i) = \eta_i' = \beta'_{0} + \mathbf{X_i} \boldsymbol\beta'  + \sum_k f_k(z_{ik}|\boldsymbol\theta'_k) + \alpha \cdot u_i, \\
 \end{array}
 $$
 
@@ -262,8 +262,8 @@ In the Mixture Model we assume that the wole data $\mathbf{Y}$ is a mixture of d
 
 $$
 \begin{array}{c}
-y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta_G), \\
-g(\mu_{i}) = \eta_{Gi} = \beta_{G0} + \mathbf{X_i} \boldsymbol\beta_G + u_i, \\
+y_i \sim f(y_i|\eta_{i}, \boldsymbol\theta_), \\
+g(\mu_{i}) = \eta_{i} = \beta_{0} + \mathbf{X_i} \boldsymbol\beta + \sum_k f_k(z_{ik}|\boldsymbol\theta_k) + u_i, \\
 \end{array}
 $$
 
@@ -272,11 +272,11 @@ yet the point process layer is splited in $J$ denpendent samplers, $Y=\cup_{j=1}
 $$
 \begin{array}{c}
 \mathbf{s} _ j \sim  LGCP(\mathbf{s} _ j | \eta_{Pj}, \boldsymbol\theta_{Pj}), \\
-\log(\lambda_{ij}) = \sum_j a_{ij} \cdot \left\lbrace \beta_{P0j} + \mathbf{X} _ {ij} \boldsymbol\beta_{Pj} + \alpha_{ij} \cdot u_{ij} \right\rbrace, \\
+\log(\lambda^k_{i}) = \sum_j a^k_{i} \cdot \left\lbrace \beta^k_{0} + \mathbf{X} \boldsymbol\beta^k + \alpha^k_{i} \cdot u_{ij} \right\rbrace, \\
 \end{array}
 $$
 
-where $a_{ij}$ is a binary value $(0,1)$ indexing the $i$-th observation belonging to the $j$-th sampler, such that $a_{ij}$ is equal to $1$ if and only if the $i$-th observation belongs to the $j$-th sampler, other way its value is equal to zero.
+where $a^k_{i}$ is a binary value $(0,1)$ indexing the $i$-th observation belonging to the $k$-th sampler, such that $a^k_{i}$ is equal to $1$ if and only if the $i$-th observation belongs to the $k$-th sampler, other way its value is equal to zero.
 
 Finally, the latent element distributions and the hyperpameter prior distributions follow the same structure as for the independent and preferential models.
 
