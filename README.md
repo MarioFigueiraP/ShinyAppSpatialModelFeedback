@@ -235,7 +235,7 @@ $$
 y_i \sim f(y_i|\eta_{Gi}, \boldsymbol\theta), \\
 s_i \sim LGCP(s_i|\eta_{Pi}, \boldsymbol\theta'), \\
 g(\mu_i) = \eta_{i} = \beta_{0} + \mathbf{X_i} \boldsymbol\beta  + \sum_k f_k(z_{ik}|\boldsymbol\theta_k) + u_i, \\
-\log(\lambda_i) = \eta_i' = \beta'_{0} + \mathbf{X_i} \boldsymbol\beta'  + \sum_k f_k(z_{ik}|\boldsymbol\theta'_k) + \alpha \cdot u_i, \\
+\log(\lambda_i) = \eta_i' = \beta_{0}' + \mathbf{X_i} \boldsymbol\beta'  + \sum_k f_k(z_{ik}|\boldsymbol\theta'_k) + \alpha \cdot u_i, \\
 \end{array}
 $$
 
